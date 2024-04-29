@@ -1,55 +1,55 @@
 #include "reverse_frontend.h"
 
 static TreeErrs_t PrintExternalDeclarations(TreeNode      *node,
-                                            LanguageElems *l_elems,
+                                            LanguageContext *language_context,
                                             FILE          *output_file);
 
 static TreeErrs_t PrintFuncDefinition(TreeNode      *node,
-                                      LanguageElems *l_elems,
+                                      LanguageContext *language_context,
                                       FILE          *output_file);
 
 static TreeErrs_t PrintDeclaration(TreeNode      *node,
-                                   LanguageElems *l_elems,
+                                   LanguageContext *language_context,
                                    FILE          *output_file);
 
 static const char *FindKeyword(KeyCode_t code);
 
 static TreeErrs_t PrintFuncDefinition(TreeNode      *node,
-                                      LanguageElems *l_elems,
+                                      LanguageContext *language_context,
                                       FILE          *output_file);
 
 static TreeErrs_t PrintDefParams(TreeNode      *node,
-                                 LanguageElems *l_elems,
+                                 LanguageContext *language_context,
                                  FILE          *output_file);
 
 static TreeErrs_t PrintInstructions(TreeNode      *node,
-                                    LanguageElems *l_elems,
+                                    LanguageContext *language_context,
                                     FILE          *output_file);
 
 static TreeErrs_t PrintOperator(TreeNode      *node,
-                                LanguageElems *l_elems,
+                                LanguageContext *language_context,
                                 FILE          *output_file);
 
 static TreeErrs_t PrintFuncCall(TreeNode      *node,
-                                LanguageElems *l_elems,
+                                LanguageContext *language_context,
                                 FILE          *output_file);
 
 static TreeErrs_t PrintParams(TreeNode       *node,
-                              LanguageElems  *l_elems,
+                              LanguageContext  *language_context,
                               FILE           *output_file);
 
 static TreeErrs_t PrintVarDeclaration(TreeNode      *node,
-                                      LanguageElems *l_elems,
+                                      LanguageContext *language_context,
                                       FILE          *output_file);
 
 static TreeErrs_t PrintNode(TreeNode      *node,
-                            LanguageElems *l_elems,
+                            LanguageContext *language_context,
                             FILE          *output_file);
 
 
 //==============================================================================
 
-TreeErrs_t ReverseFrontend(LanguageElems *l_elems,
+TreeErrs_t ReverseFrontend(LanguageContext *language_context,
                            const char    *output_file_name)
 {
     FILE *output_file = fopen(output_file_name, "w");
@@ -61,7 +61,7 @@ TreeErrs_t ReverseFrontend(LanguageElems *l_elems,
         return kFailedToOpenFile;
     }
 
-    PrintExternalDeclarations(l_elems->syntax_tree.root, l_elems, output_file);
+    PrintExternalDeclarations(language_context->syntax_tree.root, language_context, output_file);
 
     fclose(output_file);
 
@@ -94,7 +94,7 @@ static const char *FindKeyword(KeyCode_t code)
 //==============================================================================
 
 static TreeErrs_t PrintExternalDeclarations(TreeNode      *node,
-                                            LanguageElems *l_elems,
+                                            LanguageContext *language_context,
                                             FILE          *output_file)
 {
     TreeNode *decl_node = node;
@@ -103,7 +103,7 @@ static TreeErrs_t PrintExternalDeclarations(TreeNode      *node,
     {
     printf("HUY %d\n", __LINE__);
 
-        PrintDeclaration(decl_node->left, l_elems, output_file);
+        PrintDeclaration(decl_node->left, language_context, output_file);
 
         FRONT_PRINT("\n");
 
@@ -116,16 +116,16 @@ static TreeErrs_t PrintExternalDeclarations(TreeNode      *node,
 //==============================================================================
 
 static TreeErrs_t PrintDeclaration(TreeNode      *node,
-                                   LanguageElems *l_elems,
+                                   LanguageContext *language_context,
                                    FILE          *output_file)
 {
     if (node->type == kVarDecl)
     {
-        PrintVarDeclaration(node, l_elems, output_file);
+        PrintVarDeclaration(node, language_context, output_file);
     }
     else if (node->type == kFuncDef)
     {
-        PrintFuncDefinition(node, l_elems, output_file);
+        PrintFuncDefinition(node, language_context, output_file);
     }
     else
     {
@@ -140,12 +140,12 @@ static TreeErrs_t PrintDeclaration(TreeNode      *node,
 //==============================================================================
 
 static TreeErrs_t PrintVarDeclaration(TreeNode      *node,
-                                      LanguageElems *l_elems,
+                                      LanguageContext *language_context,
                                       FILE          *output_file)
 {
     FRONT_PRINT("%s ", FindKeyword(node->left->data.key_word_code));
 
-    PrintNode(node->right, l_elems, output_file);
+    PrintNode(node->right, language_context, output_file);
 
 
     return kTreeSuccess;
@@ -153,23 +153,23 @@ static TreeErrs_t PrintVarDeclaration(TreeNode      *node,
 
 //==============================================================================
 
-static TreeErrs_t PrintFuncDefinition(TreeNode      *node,
-                                      LanguageElems *l_elems,
-                                      FILE          *output_file)
+static TreeErrs_t PrintFuncDefinition(TreeNode        *node,
+                                      LanguageContext *language_context,
+                                      FILE            *output_file)
 {
     FRONT_PRINT("%s %s ", FindKeyword(node->left->data.key_word_code),
-                          l_elems->vars.var_array[node->data.variable_pos]);
+                          language_context->identifiers.identifier_array[node->data.variable_pos]);
 
     TreeNode *params_node = node->right;
 
 
-    PrintDefParams(params_node->left, l_elems, output_file);
+    PrintDefParams(params_node->left, language_context, output_file);
 
     printf("HUY %d\n", __LINE__);
 
     FRONT_PRINT("%s\n", FindKeyword(kLeftZoneBracket));
 
-    PrintInstructions(params_node->right, l_elems, output_file);
+    PrintInstructions(params_node->right, language_context, output_file);
 
     FRONT_PRINT("%s\n", FindKeyword(kRightZoneBracket));
 
@@ -179,7 +179,7 @@ static TreeErrs_t PrintFuncDefinition(TreeNode      *node,
 //==============================================================================
 
 static TreeErrs_t PrintDefParams(TreeNode      *node,
-                                 LanguageElems *l_elems,
+                                 LanguageContext *language_context,
                                  FILE          *output_file)
 {
     FRONT_PRINT("%s ", FindKeyword(kLeftBracket));
@@ -190,7 +190,7 @@ static TreeErrs_t PrintDefParams(TreeNode      *node,
     {
         if (params_node->left != nullptr)
         {
-            PrintDeclaration(params_node->left, l_elems, output_file);
+            PrintDeclaration(params_node->left, language_context, output_file);
         }
 
         params_node = params_node->right;
@@ -199,7 +199,7 @@ static TreeErrs_t PrintDefParams(TreeNode      *node,
         {
             FRONT_PRINT("%s ", FindKeyword(kEnumOp));
 
-            PrintDeclaration(params_node->left, l_elems, output_file);
+            PrintDeclaration(params_node->left, language_context, output_file);
 
             params_node = params_node->right;
         }
@@ -213,14 +213,14 @@ static TreeErrs_t PrintDefParams(TreeNode      *node,
 //==============================================================================
 
 static TreeErrs_t PrintInstructions(TreeNode      *node,
-                                    LanguageElems *l_elems,
+                                    LanguageContext *language_context,
                                     FILE          *output_file)
 {
     TreeNode *instruction_node = node;
 
     while (instruction_node != nullptr)
     {
-        PrintNode(instruction_node->left, l_elems, output_file);
+        PrintNode(instruction_node->left, language_context, output_file);
 
         instruction_node = instruction_node->right;
     }
@@ -231,7 +231,7 @@ static TreeErrs_t PrintInstructions(TreeNode      *node,
 //==============================================================================
 
 static TreeErrs_t PrintNode(TreeNode      *node,
-                            LanguageElems *l_elems,
+                            LanguageContext *language_context,
                             FILE          *output_file)
 {
     if (node == nullptr)
@@ -248,16 +248,16 @@ static TreeErrs_t PrintNode(TreeNode      *node,
             break;
         }
 
-        case kIdentificator:
+        case kIdentifier:
         {
-            FRONT_PRINT("%s ", l_elems->vars.var_array[node->data.variable_pos].id);
+            FRONT_PRINT("%s ", language_context->identifiers.identifier_array[node->data.variable_pos].id);
 
             break;
         }
 
         case kOperator:
         {
-            PrintOperator(node, l_elems, output_file);
+            PrintOperator(node, language_context, output_file);
 
             break;
         }
@@ -265,14 +265,14 @@ static TreeErrs_t PrintNode(TreeNode      *node,
 
         case kVarDecl:
         {
-            PrintVarDeclaration(node, l_elems, output_file);
+            PrintVarDeclaration(node, language_context, output_file);
 
             break;
         }
 
         case kCall:
         {
-            PrintFuncCall(node, l_elems, output_file);
+            PrintFuncCall(node, language_context, output_file);
 
             break;
         }
@@ -293,7 +293,7 @@ static TreeErrs_t PrintNode(TreeNode      *node,
 //==============================================================================
 
 static TreeErrs_t PrintOperator(TreeNode      *node,
-                                LanguageElems *l_elems,
+                                LanguageContext *language_context,
                                 FILE          *output_file)
 {
     if (node == nullptr)
@@ -315,11 +315,11 @@ static TreeErrs_t PrintOperator(TreeNode      *node,
         case kLessOrEqual:
         case kEqual:
         {
-            PrintNode(node->left, l_elems, output_file);
+            PrintNode(node->left, language_context, output_file);
 
             FRONT_PRINT("%s ", FindKeyword(node->data.key_word_code));
 
-            PrintNode(node->right, l_elems, output_file);
+            PrintNode(node->right, language_context, output_file);
 
             break;
         }
@@ -332,7 +332,7 @@ static TreeErrs_t PrintOperator(TreeNode      *node,
             FRONT_PRINT("%s %s ", FindKeyword(node->data.key_word_code),
                                   FindKeyword(kLeftBracket));
 
-            PrintNode(node->right, l_elems, output_file);
+            PrintNode(node->right, language_context, output_file);
 
             FRONT_PRINT("%s ", FindKeyword(kRightBracket));
 
@@ -348,7 +348,7 @@ static TreeErrs_t PrintOperator(TreeNode      *node,
             FRONT_PRINT("%s %s ", FindKeyword(node->data.key_word_code),
                                   FindKeyword(kLeftBracket));
 
-            PrintNode(node->right, l_elems, output_file);
+            PrintNode(node->right, language_context, output_file);
 
             FRONT_PRINT("%s ", FindKeyword(kRightBracket));
 
@@ -363,11 +363,11 @@ static TreeErrs_t PrintOperator(TreeNode      *node,
         {
             FRONT_PRINT("%s %s ", FindKeyword(kWhile), FindKeyword(kLeftBracket));
 
-            PrintNode(node->left, l_elems, output_file);
+            PrintNode(node->left, language_context, output_file);
 
             FRONT_PRINT("%s\n%s\n", FindKeyword(kRightBracket), FindKeyword(kLeftZoneBracket));
 
-            PrintInstructions(node->right, l_elems, output_file);
+            PrintInstructions(node->right, language_context, output_file);
 
             FRONT_PRINT("%s\n", FindKeyword(kRightZoneBracket));
 
@@ -378,11 +378,11 @@ static TreeErrs_t PrintOperator(TreeNode      *node,
         {
             FRONT_PRINT("%s %s ", FindKeyword(kIf), FindKeyword(kLeftBracket));
 
-            PrintNode(node->left, l_elems, output_file);
+            PrintNode(node->left, language_context, output_file);
 
             FRONT_PRINT("%s\n%s\n", FindKeyword(kRightBracket), FindKeyword(kLeftZoneBracket));
 
-            PrintInstructions(node->right, l_elems, output_file);
+            PrintInstructions(node->right, language_context, output_file);
 
             FRONT_PRINT("%s\n", FindKeyword(kRightZoneBracket));
 
@@ -391,11 +391,11 @@ static TreeErrs_t PrintOperator(TreeNode      *node,
 
         case kAssign:
         {
-            PrintNode(node->right, l_elems, output_file);
+            PrintNode(node->right, language_context, output_file);
 
             FRONT_PRINT("%s ", FindKeyword(kAssign));
 
-            PrintNode(node->left, l_elems, output_file);
+            PrintNode(node->left, language_context, output_file);
 
             PRINT_KWD(kEndOfLine);
 
@@ -406,9 +406,9 @@ static TreeErrs_t PrintOperator(TreeNode      *node,
 
         case kEndOfLine:
         {
-            PrintNode(node->left, l_elems, output_file);
+            PrintNode(node->left, language_context, output_file);
 
-            PrintNode(node->right, l_elems, output_file);
+            PrintNode(node->right, language_context, output_file);
 
             break;
         }
@@ -429,12 +429,12 @@ static TreeErrs_t PrintOperator(TreeNode      *node,
 //==============================================================================
 
 static TreeErrs_t PrintFuncCall(TreeNode      *node,
-                                LanguageElems *l_elems,
+                                LanguageContext *language_context,
                                 FILE          *output_file)
 {
-    FRONT_PRINT("%s ", l_elems->vars.var_array[node->right->data.variable_pos].id);
+    FRONT_PRINT("%s ", language_context->identifiers.identifier_array[node->right->data.variable_pos].id);
 
-    PrintParams(node->left, l_elems, output_file);
+    PrintParams(node->left, language_context, output_file);
 
     return kTreeSuccess;
 }
@@ -442,7 +442,7 @@ static TreeErrs_t PrintFuncCall(TreeNode      *node,
 //==============================================================================
 
 static TreeErrs_t PrintParams(TreeNode       *node,
-                              LanguageElems  *l_elems,
+                              LanguageContext  *language_context,
                               FILE           *output_file)
 {
     FRONT_PRINT("%s ", FindKeyword(kLeftBracket));
@@ -451,7 +451,7 @@ static TreeErrs_t PrintParams(TreeNode       *node,
 
     if (params_node->left != nullptr)
     {
-        PrintNode(params_node->left, l_elems, output_file);
+        PrintNode(params_node->left, language_context, output_file);
     }
 
     params_node = params_node->right;
@@ -460,7 +460,7 @@ static TreeErrs_t PrintParams(TreeNode       *node,
     {
         FRONT_PRINT("%s ", FindKeyword(kEnumOp));
 
-        PrintNode(params_node->left, l_elems, output_file);
+        PrintNode(params_node->left, language_context, output_file);
 
         params_node = params_node->right;
     }

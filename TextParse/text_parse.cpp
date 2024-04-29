@@ -132,7 +132,7 @@ TextErrs_t ReadWordsFromFile(Text       *text,
         return kReadingError;
     }
 
-    text->lines_count = SplitBufIntoWords(text->buf, ",. \n\r'\"!?\t()");
+    text->lines_count = SplitBufIntoWords(text->buf, " \n\t\r");
 
     FillText(text);
 

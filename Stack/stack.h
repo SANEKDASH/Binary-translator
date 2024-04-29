@@ -39,7 +39,9 @@ struct LogInfo
 #endif
 
 typedef unsigned StackErr_t;
+
 typedef TreeNode* StackElemType_t;
+
 typedef unsigned long long CanaryType_t;
 
 #ifdef HASH_PROTECTION
@@ -50,13 +52,14 @@ struct HashVals
 };
 #endif
 
-
-
 struct StackData
 {
     StackElemType_t *data;
+
     int size;
+
     size_t capacity;
+
     unsigned int status;
 };
 

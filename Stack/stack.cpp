@@ -385,9 +385,9 @@ void StackDump(const Stack *stk, LogInfo info)
                             break;
                         }
 
-                        case kIdentificator:
+                        case kIdentifier:
                         {
-                            fprintf(LogFile, "Identificator - %d\n\n", stk->stack_data.data[i]->data.variable_pos);
+                            fprintf(LogFile, "Identifier - %d\n\n", stk->stack_data.data[i]->data.variable_pos);
 
                             break;
                         }

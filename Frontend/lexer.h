@@ -14,7 +14,7 @@ typedef enum
 } LexerErrs_t;
 
 LexerErrs_t SplitOnLexems(Text *text,
-                          Stack *stk,
-                          Identificators *vars);
+                          Stack *tokens,
+                          Identifiers *identifiers);
 
 #endif

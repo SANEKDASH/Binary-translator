@@ -1,27 +1,32 @@
-CC=g++
-CFLAGS=-c -Wall -Wshadow -Winit-self -Wredundant-decls -Wcast-align -Wundef \
-	   -Wfloat-equal -Winline -Wunreachable-code -Wmissing-declarations \
-	   -Wmissing-include-dirs -Wswitch-enum -Wswitch-default -Weffc++ -Wmain \
-	   -Wextra -Wall -g -pipe -fexceptions -Wcast-qual -Wconversion -Wctor-dtor-privacy \
-	   -Wempty-body -Wformat-security -Wformat=2 -Wignored-qualifiers -Wlogical-op \
-	   -Wno-missing-field-initializers -Wnon-virtual-dtor -Woverloaded-virtual -Wpointer-arith \
-	   -Wsign-promo -Wstack-usage=8192 -Wstrict-aliasing -Wstrict-null-sentinel -Wtype-limits \
-	   -Wwrite-strings -Werror=vla -D_EJUDGE_CLIENT_SIDE -DDEBUGLDFLAGS=LDFLAGS=
+CC = g++
 
-SOURCES=Backend/main.cpp \
-	    Frontend/parse.cpp \
-		Backend/backend.cpp \
-		Common/trees.cpp \
-		Common/tree_dump.cpp \
-		debug/debug.cpp \
-		debug/color_print.cpp \
-		TextParse/text_parse.cpp \
-		Frontend/lexer.cpp \
-		Stack/stack.cpp
+CFLAGS = -c -Wall -Wshadow -Winit-self -Wredundant-decls -Wcast-align -Wundef \
+	     -Wfloat-equal -Winline -Wunreachable-code -Wmissing-declarations \
+	     -Wmissing-include-dirs -Wswitch-enum -Wswitch-default -Weffc++ -Wmain \
+	     -Wextra -Wall -g -pipe -fexceptions -Wcast-qual -Wconversion -Wctor-dtor-privacy \
+	     -Wempty-body -Wformat-security -Wformat=2 -Wignored-qualifiers -Wlogical-op \
+	     -Wno-missing-field-initializers -Wnon-virtual-dtor -Woverloaded-virtual -Wpointer-arith \
+	     -Wsign-promo -Wstack-usage=8192 -Wstrict-aliasing -Wstrict-null-sentinel -Wtype-limits \
+	     -Wwrite-strings -Werror=vla -D_EJUDGE_CLIENT_SIDE -DDEBUG
 
-OBJECTS=$(SOURCES:.cpp=.o)
+LDFLAGS =
 
-EXECUTABLE=back
+SOURCES = Backend/main.cpp \
+	      Frontend/parse.cpp \
+		  Backend/backend.cpp \
+		  Common/trees.cpp \
+		  Common/tree_dump.cpp \
+		  debug/debug.cpp \
+		  debug/color_print.cpp \
+		  TextParse/text_parse.cpp \
+		  Frontend/lexer.cpp \
+		  Stack/stack.cpp \
+		  Backend/FastList/list.cpp \
+		  Backend/ListDump/list_dump.cpp
+
+OBJECTS = $(SOURCES:.cpp=.o)
+
+EXECUTABLE = back
 
 all: $(SOURCES) $(EXECUTABLE)
 
@@ -41,3 +46,6 @@ clean:
 	@rm -f Common/*.o
 	@rm -f *.exe
 	@rm -f back
+	@rm -f Backend/FastList/*.o
+	@rm -f Backend/ListDump/*.o
+	@rm -f Backend/*.o

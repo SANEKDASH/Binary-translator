@@ -4,7 +4,9 @@
 
 int main(int argc, char *argv[])
 {
-    LanguageElems l_elems = {0};
+    InitTreeGraphDump();
+
+    LanguageContext language_context = {0};
 
     if (argc < 3)
     {
@@ -14,14 +16,18 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    ReadLanguageElemsOutOfFile(&l_elems, argv[1], argv[2]);
 
-    if (ReverseFrontend(&l_elems, argv[3]) != 0)
+    ReadLanguageContextOutOfFile(&language_context, argv[1], argv[2]);
+
+
+    if (ReverseFrontend(&language_context, argv[3]) != 0)
     {
         printf("You are dumb\n");
 
         return -1;
     }
+
+    EndTreeGraphDump();
 
     return 0;
 }

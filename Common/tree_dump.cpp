@@ -64,6 +64,7 @@ TreeErrs_t GraphDumpTree(Tree *tree,
         return kNullTree;
     }
 
+
     FILE *dot_file = fopen("tree.dmp.dot", "w");
 
     #define LOG_PRINT(...) fprintf(dot_file, __VA_ARGS__)
@@ -74,6 +75,8 @@ TreeErrs_t GraphDumpTree(Tree *tree,
 
         return kFailedToOpenFile;
     }
+
+
     static char cmd_command[200] = {0};
 
     assert(dot_file);
@@ -112,6 +115,7 @@ TreeErrs_t GraphDumpTree(Tree *tree,
                       line,
                       call_count);
 
+    printf("HUY\n");
 
     ++call_count;
 
@@ -148,7 +152,7 @@ static void LogPrintTree(TreeNode *node,
                   node->left,
                   node->right);
     }
-    else if (node->type == kIdentificator)
+    else if (node->type == kIdentifier)
     {
         LOG_PRINT("node%p [style = filled, fillcolor = \"pink\", shape = Mrecord, label = "
                   "\"ID_POS: %lu | type : VAR | {parent: %p | pointer: %p | left: %p | right: %p} \"]\n",

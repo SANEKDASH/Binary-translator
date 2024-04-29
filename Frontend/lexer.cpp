@@ -6,14 +6,14 @@
 #include "../Stack/stack.h"
 #include "../Common/NameTable.h"
 
-static LexerErrs_t GetLexem(Stack          *stk,
+static LexerErrs_t GetLexem(Stack          *tokens,
                             Expr           *expr,
-                            Identificators *vars);
+                            Identifiers *identifiers);
 
-static TreeNode *GetIdentificator    (Expr           *expr,
-                                      Identificators *vars);
+static TreeNode *GetIdentifier    (Expr           *expr,
+                                      Identifiers *identifiers);
 static TreeNode *GetUnknownExpression(Expr           *expr,
-                                      Identificators *vars);
+                                      Identifiers *identifiers);
 
 static TreeNode *GetKeyword(Expr *expr);
 static TreeNode *GetNumber (Expr *expr);
@@ -22,6 +22,8 @@ static void SkipExprSpaces(Expr *expr);
 
 static bool CyrillicIsalpha(Expr *expr);
 static bool IsCyrillicLowerByte(char byte);
+
+static bool IsOperatorSymbol(char symbol);
 
 static bool IsRegularExpression(Expr *expr);
 
@@ -32,8 +34,8 @@ static int MissComment(char *string);
 
 
 LexerErrs_t SplitOnLexems(Text      *text,
-                          Stack     *stk,
-                          Identificators *vars)
+                          Stack     *tokens,
+                          Identifiers *identifiers)
 {
     setlocale(LC_ALL, "en_US.utf8");
 
@@ -52,7 +54,7 @@ LexerErrs_t SplitOnLexems(Text      *text,
 
         while (expr.string[expr.pos] != '\0')
         {
-            if (GetLexem(stk, &expr, vars) != kLexerSuccess)
+            if (GetLexem(tokens, &expr, identifiers) != kLexerSuccess)
             {
                 printf("Syntax error. POS: %d, LINE: %d\n", expr.pos + 1, i + 1);
 
@@ -83,7 +85,7 @@ static int MissComment(char *string)
 
 #define OP_CTOR(op_code) NodeCtor(nullptr, nullptr, nullptr, kOperator,      op_code)
 #define NUM_CTOR(val)    NodeCtor(nullptr, nullptr, nullptr, kConstNumber,   val)
-#define ID_CTOR(pos)     NodeCtor(nullptr, nullptr, nullptr, kIdentificator, pos)
+#define ID_CTOR(pos)     NodeCtor(nullptr, nullptr, nullptr, kIdentifier, pos)
 
 #define CUR_CHAR expr->string[expr->pos]
 #define STRING   expr->string
@@ -93,9 +95,9 @@ static int MissComment(char *string)
 #define D_PR printf("LINE: %d, STRING[%s], POS: %d\n", __LINE__, CUR_STR, POS);
 //==============================================================================
 
-static LexerErrs_t GetLexem(Stack          *stk,
+static LexerErrs_t GetLexem(Stack          *tokens,
                             Expr           *expr,
-                            Identificators *vars)
+                            Identifiers *identifiers)
 {
     SkipExprSpaces(expr);
 D_PR
@@ -104,11 +106,13 @@ D_PR
 
     if (node == nullptr)
     {
-        node = GetUnknownExpression(expr, vars);
+        node = GetUnknownExpression(expr, identifiers);
     }
 D_PR
 
-    Push(stk, node);
+    node->line_number = expr->line_number;
+
+    Push(tokens, node);
 D_PR
 
     return kLexerSuccess;
@@ -117,21 +121,20 @@ D_PR
 //==============================================================================
 
 static TreeNode *GetUnknownExpression(Expr           *expr,
-                                      Identificators *vars)
+                                      Identifiers *identifiers)
 {
     TreeNode *node = nullptr;
 
     if (isdigit(CUR_CHAR) || (CUR_CHAR == '-'))
     {
 D_PR
-
         node = GetNumber(expr);
 D_PR
 
     }
     else if (isalpha(CUR_CHAR) || CyrillicIsalpha(expr))
     {
-        node = GetIdentificator(expr, vars);
+        node = GetIdentifier(expr, identifiers);
     }
 
     SkipExprSpaces(expr);
@@ -157,7 +160,9 @@ TreeNode *GetKeyword(Expr *expr)
 
     for (size_t i = 0; i < kKeyWordCount; i++)
     {
-        if (strncmp(CUR_STR, NameTable[i].key_word, NameTable[i].word_len) == 0)
+        if ((memcmp(CUR_STR, NameTable[i].key_word, NameTable[i].word_len)) == 0 &&
+                  (*(CUR_STR + NameTable[i].word_len) == '\0' ||
+                   *(CUR_STR + NameTable[i].word_len) == ' ' ))
         {
             POS += NameTable[i].word_len;
 
@@ -174,44 +179,44 @@ TreeNode *GetKeyword(Expr *expr)
 
 //==============================================================================
 
-static const size_t kMaxIdentificatorNameSize = 256;
+static const size_t kMaxIdentifierNameSize = 256;
 static const size_t kSizeOfCyrillicWchar      = 2;
 
-static TreeNode *GetIdentificator(Expr           *expr,
-                                  Identificators *vars)
+static TreeNode *GetIdentifier(Expr           *expr,
+                                  Identifiers *identifiers)
 {
     CHECK(expr);
-    CHECK(vars);
+    CHECK(identifiers);
 
-    TreeNode *identificator_node = nullptr;
+    TreeNode *Identifier_node = nullptr;
 
-    const char *identificator_start_ptr = CUR_STR;
+    const char *Identifier_start_ptr = CUR_STR;
 
-    char identificator_name[kMaxIdentificatorNameSize] = {0};
+    char Identifier_name[kMaxIdentifierNameSize] = {0};
 
-    size_t identificator_name_length = 0;
+    size_t Identifier_name_length = 0;
 
-    while(!isspace(CUR_CHAR) && CUR_CHAR != '\0')
+    while(!isspace(CUR_CHAR) && CUR_CHAR != '\0' && !IsOperatorSymbol(CUR_CHAR))
     {
-        ++identificator_name_length;
+        ++Identifier_name_length;
 
         ++POS;
     }
 
-    memcpy(identificator_name, identificator_start_ptr, identificator_name_length);
+    memcpy(Identifier_name, Identifier_start_ptr, Identifier_name_length);
 
-    int identificator_pos = SeekIdentificator(vars, identificator_name);
+    int Identifier_pos = SeekIdentifier(identifiers, Identifier_name);
 
-    if (identificator_pos == -1)
+    if (Identifier_pos == -1)
     {
-        identificator_pos = AddIdentificator(vars, strdup(identificator_name));
+        Identifier_pos = AddIdentifier(identifiers, strdup(Identifier_name));
     }
 
-    identificator_node = ID_CTOR(identificator_pos);
+    Identifier_node = ID_CTOR(Identifier_pos);
 
     SkipExprSpaces(expr);
 
-    return identificator_node;
+    return Identifier_node;
 }
 
 //==============================================================================
@@ -262,3 +267,14 @@ static bool IsCyrillicLowerByte(char byte)
 {
     return (byte >= 0x10 && byte <= 0x4f) || byte == 0x51 || byte == 0x01;
 }
+
+//==============================================================================
+
+static bool IsOperatorSymbol(char symbol)
+{
+    return symbol == '?' ||
+           symbol == ',' ||
+           symbol == '!';
+}
+
+//==============================================================================

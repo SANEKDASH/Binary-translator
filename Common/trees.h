@@ -23,8 +23,10 @@ typedef enum
 struct Expr
 {
     char *string = nullptr;
-    size_t pos;
-    size_t line_number;
+
+    size_t  pos;
+    size_t  line_number;
+
     bool rus_symbol_state;
 };
 
@@ -57,19 +59,24 @@ struct NameTables
 };
 
 
-struct Identificator
+struct Identifier
 {
     char *id =  nullptr;
-    bool        declaration_state;
-    IdType_t    id_type;
+
+    bool declaration_state;
+
+    IdType_t id_type;
 };
 
-struct Identificators
+struct Identifiers
 {
     VarType_t type;
-    Identificator *var_array;
+
+    Identifier *identifier_array;
+
     size_t size;
-    size_t var_count;
+
+    size_t identifier_count;
 };
 
 typedef double NumType_t;
@@ -93,10 +100,13 @@ typedef enum
 
 union NodeData
 {
-    NumType_t   const_val;
-    KeyCode_t   key_word_code;
-    size_t      variable_pos;
-    size_t      line_number;
+    NumType_t const_val;
+
+    KeyCode_t key_word_code;
+
+    size_t variable_pos;
+    size_t line_number;
+
     const char *id;
 };
 
@@ -118,9 +128,9 @@ struct Tree
     TreeNode *root;
 };
 
-struct LanguageElems
+struct LanguageContext
 {
-    Identificators vars;
+    Identifiers identifiers;
 
     NameTables tables;
 
@@ -142,23 +152,24 @@ TableOfNames *AddTableOfNames(NameTables *tables,
 
 int TablesOfNamesInit(TableOfNames *table,
                       int           func_code);
+
 int AddName(TableOfNames *table,
             size_t        id,
             IdType_t      type);
 
-int VarArrayDtor(Identificators *vars);
+int VarArrayDtor(Identifiers *identifiers);
 
-int AddIdentificator(Identificators *vars,
-           char           *var_name);
+int AddIdentifier(Identifiers *vars,
+                  char         *var_name);
 
-int SeekIdentificator(Identificators *vars,
-                 const char     *var_name);
+int SeekIdentifier(Identifiers *vars,
+                   const char  *var_name);
 
-int VarArrayInit(Identificators *vars);
+int VarArrayInit(Identifiers *vars);
 
-TreeErrs_t LanguageElemsInit(LanguageElems *l_elems);
+TreeErrs_t LanguageContextInit(LanguageContext *language_context);
 
-TreeErrs_t LanguageElemsDtor(LanguageElems *l_elems);
+TreeErrs_t LanguageContextDtor(LanguageContext *language_context);
 
 TreeErrs_t TreeVerify(Tree *tree);
 
@@ -172,18 +183,18 @@ TreeNode *NodeCtor(TreeNode         *parent_node,
 
 TreeErrs_t TreeDtor(TreeNode *root);
 
-TreeErrs_t PrintTreeInFile(LanguageElems *l_elems,
-                           const char    *file_name);
+TreeErrs_t PrintTreeInFile(LanguageContext *language_context,
+                           const char      *file_name);
 
-TreeErrs_t ReadLanguageElemsOutOfFile(LanguageElems *l_elems,
-                                      const char    *tree_file_name,
-                                      const char    *tables_file);
+TreeErrs_t ReadLanguageContextOutOfFile(LanguageContext *language_context,
+                                        const char      *tree_file_name,
+                                        const char      *tables_file);
 
-TreeNode *CopyNode(const TreeNode *src_node,
-                         TreeNode *parent_node);
+TreeNode *CopyNode(const TreeNode *src_node);
 
 TreeErrs_t SetParents(TreeNode *parent_node);
 
-TreeErrs_t GetDepth(const TreeNode *node, int *depth);
+TreeErrs_t GetDepth(const TreeNode *node,
+                    int            *depth);
 
 #endif

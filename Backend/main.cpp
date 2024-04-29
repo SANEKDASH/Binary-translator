@@ -7,15 +7,21 @@
 int main(int argc, char *argv[])
 {
     InitTreeGraphDump();
+    BeginListGraphDump();
 
-    LanguageElems l_elems = {0};
+    LanguageContext language_context = {0};
+    LanguageContextInit(&language_context);
+    ReadLanguageContextOutOfFile(&language_context, argv[1], argv[2]);
 
-    LanguageElemsInit(&l_elems);
+    BackendContext backend_context = {0};
+    BackendContextInit(&backend_context);
 
-    ReadLanguageElemsOutOfFile(&l_elems, argv[1], argv[2]);
+    GetAsmInstructionsOutLanguageContext(&instruction_list, &language_context);
 
-    MakeAsmCode(&l_elems, "assembled.asm");
+    LanguageContextDtor(&language_context);
+    BackendContextDestroy(&backend_context);
 
+    EndListGraphDump();
     EndTreeGraphDump();
 
     return 0;

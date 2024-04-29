@@ -17,22 +17,22 @@ static FILE *dump_file = nullptr;
 
 static const char *dmp_name = "suka_dump.txt";
 
-static TreeNode* CreateNodeFromText(Identificators     *vars,
+static TreeNode* CreateNodeFromText(Identifiers     *identifiers,
                                     Text          *text,
                                     size_t        *iterator);
 
-static TreeNode *CreateNodeFromBrackets(Identificators     *vars,
+static TreeNode *CreateNodeFromBrackets(Identifiers     *identifiers,
                                         Text          *text,
                                         size_t        *iterator);
 
 static TreeErrs_t PrintTree(const TreeNode *root,
-                            Identificators *vars,
+                            Identifiers *identifiers,
                             FILE           *output_file);
 
-static TreeErrs_t ReallocVarArray(Identificators *vars,
+static TreeErrs_t ReallocVarArray(Identifiers *identifiers,
                                   size_t          new_size);
 
-static int ReadNameTablesOutOfFile(LanguageElems *l_elems,
+static int ReadNameTablesOutOfFile(LanguageContext *language_context,
                                    const char    *tables_file_name);
 
 static int ReallocNameTables(NameTables *tables, size_t new_size);
@@ -217,29 +217,29 @@ int AddName(TableOfNames *table,
 
 //==============================================================================
 
-int VarArrayInit(Identificators *vars)
+int VarArrayInit(Identifiers *identifiers)
 {
-    vars->var_array = (Identificator *) calloc(kBaseVarCount, sizeof(Identificator));
+    identifiers->identifier_array = (Identifier *) calloc(kBaseVarCount, sizeof(Identifier));
 
-    if (vars->var_array == nullptr)
+    if (identifiers->identifier_array == nullptr)
     {
         return -1;
     }
 
-    vars->size = kBaseVarCount;
+    identifiers->size = kBaseVarCount;
 
-    vars->var_count = 0;
+    identifiers->identifier_count = 0;
 
     return 0;
 }
 
 //==============================================================================
 
-int SeekIdentificator(Identificators *vars, const char *var_name)
+int SeekIdentifier(Identifiers *identifiers, const char *var_name)
 {
-    for (size_t i = 0; i < vars->var_count; i++)
+    for (size_t i = 0; i < identifiers->identifier_count; i++)
     {
-        if (strcmp(var_name, vars->var_array[i].id) == 0)
+        if (strcmp(var_name, identifiers->identifier_array[i].id) == 0)
         {
             return i;
         }
@@ -250,45 +250,45 @@ int SeekIdentificator(Identificators *vars, const char *var_name)
 
 //==============================================================================
 
-int AddIdentificator(Identificators *vars, char *var_name)
+int AddIdentifier(Identifiers *identifiers, char *var_name)
 {
-    if (vars->var_count >= vars->size)
+    if (identifiers->identifier_count >= identifiers->size)
     {
-        ReallocVarArray(vars, vars->size * 2);
+        ReallocVarArray(identifiers, identifiers->size * 2);
     }
 
-    vars->var_array[vars->var_count].id                = var_name;
-    vars->var_array[vars->var_count].declaration_state = false;
-    vars->var_array[vars->var_count].id_type           = kUndefined;
-    ++vars->var_count;
+    identifiers->identifier_array[identifiers->identifier_count].id                = var_name;
+    identifiers->identifier_array[identifiers->identifier_count].declaration_state = false;
+    identifiers->identifier_array[identifiers->identifier_count].id_type           = kUndefined;
+    ++identifiers->identifier_count;
 
-    return vars->var_count - 1;
+    return identifiers->identifier_count - 1;
 }
 
 //==============================================================================
 
-int VarArrayDtor(Identificators *vars)
+int VarArrayDtor(Identifiers *identifiers)
 {
-    free(vars->var_array);
+    free(identifiers->identifier_array);
 
-    vars->var_array = nullptr;
+    identifiers->identifier_array = nullptr;
 
-    vars->size = vars->var_count = 0;
+    identifiers->size = identifiers->identifier_count = 0;
 
     return 0;
 }
 
 //==============================================================================
 
-static TreeErrs_t ReallocVarArray(Identificators *vars,
+static TreeErrs_t ReallocVarArray(Identifiers *identifiers,
                                   size_t     new_size)
 {
-    vars->size = new_size;
-    vars->var_array = (Identificator *) realloc(vars->var_array, vars->size * sizeof(Identificator));
+    identifiers->size = new_size;
+    identifiers->identifier_array = (Identifier *) realloc(identifiers->identifier_array, identifiers->size * sizeof(Identifier));
 
-    if (vars->var_array == nullptr)
+    if (identifiers->identifier_array == nullptr)
     {
-        perror("ReallocVarArray() failed to realloc Identificator array");
+        perror("ReallocVarArray() failed to realloc Identifier array");
 
         return kFailedRealloc;
     }
@@ -355,7 +355,7 @@ TreeNode *NodeCtor(TreeNode         *parent_node,
             break;
         }
 
-        case kIdentificator:
+        case kIdentifier:
         {
             node->data.variable_pos = data;
 
@@ -418,7 +418,7 @@ TreeNode *NodeCtor(TreeNode         *parent_node,
 //==============================================================================
 
 static TreeErrs_t PrintTree(const TreeNode *root,
-                            Identificators      *vars,
+                            Identifiers      *identifiers,
                             FILE           *output_file)
 {
     CHECK(output_file);
@@ -452,11 +452,11 @@ static TreeErrs_t PrintTree(const TreeNode *root,
 
             break;
         }
-        case kIdentificator:
+        case kIdentifier:
         {
             fprintf(output_file,
                     "%d %lu ",
-                    kIdentificator,
+                    kIdentifier,
                     root->data.variable_pos);
 
             break;
@@ -506,7 +506,7 @@ static TreeErrs_t PrintTree(const TreeNode *root,
 
     if (root->left != nullptr)
     {
-        PrintTree(root->left, vars, output_file);
+        PrintTree(root->left, identifiers, output_file);
     }
     else
     {
@@ -515,7 +515,7 @@ static TreeErrs_t PrintTree(const TreeNode *root,
 
     if (root->right != nullptr)
     {
-        PrintTree(root->right, vars, output_file);
+        PrintTree(root->right, identifiers, output_file);
     }
     else
     {
@@ -529,7 +529,7 @@ static TreeErrs_t PrintTree(const TreeNode *root,
 
 //==============================================================================
 
-TreeErrs_t PrintTreeInFile(LanguageElems *l_elems,
+TreeErrs_t PrintTreeInFile(LanguageContext *language_context,
                            const char    *file_name)
 {
     FILE *output_file = fopen(file_name, "wb");
@@ -541,9 +541,9 @@ TreeErrs_t PrintTreeInFile(LanguageElems *l_elems,
 
     int main_id = kPoisonVal;
 
-    for (size_t i = 0; i < l_elems->vars.var_count; i++)
+    for (size_t i = 0; i < language_context->identifiers.identifier_count; i++)
     {
-        if (strcmp(l_elems->vars.var_array[i].id, kMainFuncName) == 0)
+        if (strcmp(language_context->identifiers.identifier_array[i].id, kMainFuncName) == 0)
         {
             main_id = i;
 
@@ -562,7 +562,7 @@ TreeErrs_t PrintTreeInFile(LanguageElems *l_elems,
 
     fprintf(output_file, "%d ", main_id);
 
-    PrintTree(l_elems->syntax_tree.root, &l_elems->vars, output_file);
+    PrintTree(language_context->syntax_tree.root, &language_context->identifiers, output_file);
 
     fclose(output_file);
 
@@ -571,15 +571,16 @@ TreeErrs_t PrintTreeInFile(LanguageElems *l_elems,
 
 //==============================================================================
 
-TreeErrs_t ReadLanguageElemsOutOfFile(LanguageElems *l_elems,
-                                      const char    *tree_file_name,
-                                      const char    *tables_file_name)
+TreeErrs_t ReadLanguageContextOutOfFile(LanguageContext *language_context,
+                                        const char      *tree_file_name,
+                                        const char      *tables_file_name)
 {
-    CHECK(l_elems);
+    CHECK(language_context);
     CHECK(tree_file_name);
     CHECK(tables_file_name);
 
     Text tree_text = {0};
+
 
     if (ReadWordsFromFile(&tree_text, tree_file_name) != kSuccess)
     {
@@ -592,24 +593,24 @@ TreeErrs_t ReadLanguageElemsOutOfFile(LanguageElems *l_elems,
 
     size_t iterator = 0;
 
-    l_elems->tables.main_id_pos = atoi(tree_text.lines_ptr[iterator++].str);
+    language_context->tables.main_id_pos = atoi(tree_text.lines_ptr[iterator++].str);
 
-    l_elems->syntax_tree.root = CreateNodeFromText(&l_elems->vars, &tree_text, &iterator);
+    language_context->syntax_tree.root = CreateNodeFromText(&language_context->identifiers, &tree_text, &iterator);
 
-    if (l_elems->syntax_tree.root == nullptr)
+    if (language_context->syntax_tree.root == nullptr)
     {
         printf("ReatTreeOutOfFile() failed to read tree");
 
         return kFailedToReadTree;
     }
 
-    free(l_elems->vars.var_array[l_elems->tables.main_id_pos].id);
+    ReadNameTablesOutOfFile(language_context, tables_file_name);
 
-    l_elems->vars.var_array[l_elems->tables.main_id_pos].id = strdup(kMainFuncName);
+    free(language_context->identifiers.identifier_array[language_context->tables.main_id_pos].id);
 
-    ReadNameTablesOutOfFile(l_elems, tables_file_name);
+    language_context->identifiers.identifier_array[language_context->tables.main_id_pos].id = strdup(kMainFuncName);
 
-    GRAPH_DUMP_TREE(&l_elems->syntax_tree);
+    GRAPH_DUMP_TREE(&language_context->syntax_tree);
 
     return kTreeSuccess;
 }
@@ -622,10 +623,10 @@ TreeErrs_t ReadLanguageElemsOutOfFile(LanguageElems *l_elems,
 
 //==============================================================================
 
-static int ReadNameTablesOutOfFile(LanguageElems *l_elems,
+static int ReadNameTablesOutOfFile(LanguageContext *language_context,
                                    const char    *tables_file_name)
 {
-    CHECK(l_elems);
+    CHECK(language_context);
     CHECK(tables_file_name);
 
     Text table_tokens;
@@ -634,50 +635,48 @@ static int ReadNameTablesOutOfFile(LanguageElems *l_elems,
 
     size_t i = 0;
 
-    l_elems->vars.var_count = atoi(CUR_TOKEN);
+    language_context->identifiers.identifier_count = atoi(CUR_TOKEN);
 
-    l_elems->vars.var_array = (Identificator *) calloc(l_elems->vars.var_count,
-                                                       sizeof(Identificator));
+    language_context->identifiers.identifier_array = (Identifier *) calloc(language_context->identifiers.identifier_count, sizeof(Identifier));
+
     GO_TO_NEXT_TOKEN;
 
-    for (size_t j = 0; j < l_elems->vars.var_count; j++)
+    for (size_t j = 0; j < language_context->identifiers.identifier_count; j++)
     {
-        l_elems->vars.var_array[j].id = strdup(CUR_TOKEN);
+        language_context->identifiers.identifier_array[j].id = strdup(CUR_TOKEN);
 
         GO_TO_NEXT_TOKEN;
     }
 
-    l_elems->tables.tables_count = atoi(CUR_TOKEN);
-    l_elems->tables.name_tables  = (TableOfNames **) calloc(l_elems->tables.tables_count,
-                                                            sizeof(TableOfNames *));
+    language_context->tables.tables_count = atoi(CUR_TOKEN);
+    language_context->tables.name_tables  = (TableOfNames **) calloc(language_context->tables.tables_count, sizeof(TableOfNames *));
 
     GO_TO_NEXT_TOKEN;
 
-    for (size_t j = 0; j < l_elems->tables.tables_count; j++)
+    for (size_t j = 0; j < language_context->tables.tables_count; j++)
     {
-        l_elems->tables.name_tables[j] = (TableOfNames *) calloc(1, sizeof(TableOfNames));
+        language_context->tables.name_tables[j] = (TableOfNames *) calloc(1, sizeof(TableOfNames));
 
-        l_elems->tables.name_tables[j]->name_count = atoi(CUR_TOKEN);
+        language_context->tables.name_tables[j]->name_count = atoi(CUR_TOKEN);
 
-        l_elems->tables.name_tables[j]->capacity   = atoi(CUR_TOKEN);
+        language_context->tables.name_tables[j]->capacity   = atoi(CUR_TOKEN);
 
-        l_elems->tables.name_tables[j]->names = (Name *) calloc(l_elems->tables.name_tables[j]->capacity,
-                                                                 sizeof(Name));
-
-        GO_TO_NEXT_TOKEN;
-
-        l_elems->tables.name_tables[j]->func_code = atoi(CUR_TOKEN);
+        language_context->tables.name_tables[j]->names = (Name *) calloc(language_context->tables.name_tables[j]->capacity, sizeof(Name));
 
         GO_TO_NEXT_TOKEN;
 
-        for (size_t z = 0; z < l_elems->tables.name_tables[j]->capacity; z++)
+        language_context->tables.name_tables[j]->func_code = atoi(CUR_TOKEN);
+
+        GO_TO_NEXT_TOKEN;
+
+        for (size_t z = 0; z < language_context->tables.name_tables[j]->capacity; z++)
         {
 
-            l_elems->tables.name_tables[j]->names[z].pos = atoi(CUR_TOKEN);
+            language_context->tables.name_tables[j]->names[z].pos = atoi(CUR_TOKEN);
 
             GO_TO_NEXT_TOKEN;
 
-            l_elems->tables.name_tables[j]->names[z].type = (IdType_t) atoi(CUR_TOKEN);
+            language_context->tables.name_tables[j]->names[z].type = (IdType_t) atoi(CUR_TOKEN);
 
             GO_TO_NEXT_TOKEN;
         }
@@ -700,12 +699,13 @@ static int ReadNameTablesOutOfFile(LanguageElems *l_elems,
 
 //==============================================================================
 
-static TreeNode* CreateNodeFromText(Identificators *vars,
+static TreeNode* CreateNodeFromText(Identifiers    *identifiers,
                                     Text           *text,
                                     size_t         *iterator)
 {
     CHECK(iterator);
     CHECK(text);
+
     TreeNode *node = nullptr;
 
     if (*CUR_TOKEN == '(')
@@ -740,7 +740,7 @@ static TreeNode* CreateNodeFromText(Identificators *vars,
                 break;
             }
 
-            case kIdentificator:
+            case kIdentifier:
             {
                 GO_TO_NEXT_TOKEN;
 
@@ -749,7 +749,7 @@ static TreeNode* CreateNodeFromText(Identificators *vars,
                 node = NodeCtor(nullptr,
                                 nullptr,
                                 nullptr,
-                                kIdentificator,
+                                kIdentifier,
                                 pos);
 
                 break;
@@ -815,9 +815,10 @@ static TreeNode* CreateNodeFromText(Identificators *vars,
 
     GO_TO_NEXT_TOKEN;
 
-    node->left =  CreateNodeFromBrackets(vars, text, iterator);
 
-    node->right = CreateNodeFromBrackets(vars, text, iterator);
+    node->left =  CreateNodeFromBrackets(identifiers, text, iterator);
+
+    node->right = CreateNodeFromBrackets(identifiers, text, iterator);
 
     if (*CUR_TOKEN != ')')
     {
@@ -831,15 +832,16 @@ static TreeNode* CreateNodeFromText(Identificators *vars,
 
 //==============================================================================
 
-static TreeNode *CreateNodeFromBrackets(Identificators *vars,
+static TreeNode *CreateNodeFromBrackets(Identifiers *identifiers,
                                         Text           *text,
                                         size_t         *iterator)
 {
     TreeNode *node = nullptr;
 
+
     if (*CUR_TOKEN == '(')
     {
-        node = CreateNodeFromText(vars, text, iterator);
+        node = CreateNodeFromText(identifiers, text, iterator);
 
         GO_TO_NEXT_TOKEN;
 
@@ -867,8 +869,7 @@ static TreeNode *CreateNodeFromBrackets(Identificators *vars,
 
 //==============================================================================
 
-TreeNode *CopyNode(const TreeNode *src_node,
-                         TreeNode *parent_node)
+TreeNode *CopyNode(const TreeNode *src_node)
 {
     if (src_node == nullptr)
     {
@@ -877,13 +878,12 @@ TreeNode *CopyNode(const TreeNode *src_node,
 
     TreeNode *node = (TreeNode *) calloc(1, sizeof(TreeNode));
 
-    node->data = src_node->data;
+    node->data        = src_node->data;
+    node->line_number = src_node->line_number;
+    node->type        = src_node->type;
 
-    node->type = src_node->type;
-
-    node->left   = CopyNode(src_node->left, node);
-    node->right  = CopyNode(src_node->right, node);
-    node->parent = parent_node;
+    node->left   = CopyNode(src_node->left);
+    node->right  = CopyNode(src_node->right);
 
     return node;
 }
@@ -915,23 +915,23 @@ TreeErrs_t SetParents(TreeNode *parent_node)
 
 //==============================================================================
 
-TreeErrs_t LanguageElemsInit(LanguageElems *l_elems)
+TreeErrs_t LanguageContextInit(LanguageContext *language_context)
 {
-    TreeCtor(&l_elems->syntax_tree);
+    TreeCtor(&language_context->syntax_tree);
 
-    VarArrayInit(&l_elems->vars);
+    VarArrayInit(&language_context->identifiers);
 
-    NameTablesInit(&l_elems->tables);
+    NameTablesInit(&language_context->tables);
 
     return kTreeSuccess;
 }
 
 //==============================================================================
 
-TreeErrs_t LanguageElemsDtor(LanguageElems *l_elems)
+TreeErrs_t LanguageContextDtor(LanguageContext *language_context)
 {
-    TreeDtor(l_elems->syntax_tree.root);
-    VarArrayDtor(&l_elems->vars);
+    TreeDtor(language_context->syntax_tree.root);
+    VarArrayDtor(&language_context->identifiers);
 
     return kTreeSuccess;
 }

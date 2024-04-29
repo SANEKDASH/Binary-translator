@@ -6,7 +6,7 @@ static const char *kMainFuncName = "Аганим";
 typedef enum
 {
     kConstNumber    = 1,
-    kIdentificator  = 2,
+    kIdentifier     = 2,
     kOperator       = 3,
     kFuncDef        = 4,
     kParamsNode     = 5,

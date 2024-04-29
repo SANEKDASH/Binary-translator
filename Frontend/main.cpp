@@ -8,8 +8,8 @@ int main(int argc, char *argv[])
 {
     InitTreeGraphDump();
 
-    LanguageElems      l_elems = {0};
-    LanguageElemsInit(&l_elems);
+    LanguageContext      language_context = {0};
+    LanguageContextInit(&language_context);
 
     if (argc < 2)
     {
@@ -18,23 +18,22 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    l_elems.syntax_tree.root = GetSyntaxTree(&l_elems.vars, argv[1]);
+    language_context.syntax_tree.root = GetSyntaxTree(&language_context.identifiers, argv[1]);
 
-    GRAPH_DUMP_TREE(&l_elems.syntax_tree);
+    GRAPH_DUMP_TREE(&language_context.syntax_tree);
 
     EndTreeGraphDump();
 
-    if (PrintTreeInFile(&l_elems, "tree_save.txt") != kTreeSuccess ||
-        l_elems.syntax_tree.root == nullptr)
+    if (PrintTreeInFile(&language_context, "tree_save.txt") != kTreeSuccess || language_context.syntax_tree.root == nullptr)
     {
-        printf(">> Иди нахуй.\n");
+        printf(">> Иди нахуй. Где дерево?\n");
 
-        LanguageElemsDtor(&l_elems);
+        LanguageContextDtor(&language_context);
 
         return -1;
     }
 
-    LanguageElemsDtor(&l_elems);
+    LanguageContextDtor(&language_context);
 
     printf(">> Так уж и быть, скомпилю тебе это дерьмо: \"%s\".\n", argv[1]);
 
