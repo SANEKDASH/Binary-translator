@@ -17,7 +17,6 @@ int main(int argc, char *argv[])
 
         return 0;
     }
-
     language_context.syntax_tree.root = GetSyntaxTree(&language_context.identifiers, argv[1]);
 
     GRAPH_DUMP_TREE(&language_context.syntax_tree);

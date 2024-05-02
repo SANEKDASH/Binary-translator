@@ -22,7 +22,8 @@ SOURCES = Backend/main.cpp \
 		  Frontend/lexer.cpp \
 		  Stack/stack.cpp \
 		  Backend/FastList/list.cpp \
-		  Backend/ListDump/list_dump.cpp
+		  Backend/ListDump/list_dump.cpp \
+		  Backend/backend_dump.cpp
 
 OBJECTS = $(SOURCES:.cpp=.o)
 

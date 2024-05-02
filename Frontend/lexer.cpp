@@ -41,14 +41,11 @@ LexerErrs_t SplitOnLexems(Text      *text,
 
     for (size_t i = 0; i < text->lines_count; i++)
     {
-        printf("LINE -----> %d\n", i + 1);
         Expr expr;
 
         expr.pos         = 0;
         expr.string      = text->lines_ptr[i].str;
         expr.line_number = text->lines_ptr[i].real_line_number;
-
-        printf("strlen %d\n", strlen(expr.string));
 
         MissComment(expr.string);
 
@@ -92,7 +89,8 @@ static int MissComment(char *string)
 #define POS      expr->pos
 #define CUR_STR  expr->string + expr->pos
 
-#define D_PR printf("LINE: %d, STRING[%s], POS: %d\n", __LINE__, CUR_STR, POS);
+#define D_PR
+//printf("LINE: %d, STRING[%s], POS: %d\n", __LINE__, CUR_STR, POS);
 //==============================================================================
 
 static LexerErrs_t GetLexem(Stack          *tokens,

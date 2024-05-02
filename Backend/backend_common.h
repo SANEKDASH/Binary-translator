@@ -3,41 +3,96 @@
 
 #include <stdint.h>
 
-// commented registers - when there is R or B bit equal to 1
-// in REX prefix
 typedef enum
 {
-    kRAX = 0x0, // also r8
-    kRCX = 0x1, // also r9
-    kRDX = 0x2, // also r10
-    kRBX = 0x3, // also r11
-    kRSP = 0x4, // also r12
-    kRBP = 0x5, // also r13
-    kRSI = 0x6, // also r14
-    kRDI = 0x7, // also r15
+    kRAX = 0x0,
+    kRCX = 0x1,
+    kRDX = 0x2,
+    kRBX = 0x3,
+    kRSP = 0x4,
+    kRBP = 0x5,
+    kRSI = 0x6,
+    kRDI = 0x7,
+    kR8  = 0x0,
+    kR9  = 0x1,
+    kR10 = 0x2,
+    kR11 = 0x3,
+    kR12 = 0x4,
+    kR13 = 0x5,
+    kR14 = 0x6,
+    kR15 = 0x7,
+
+    kNotRegister,
 } RegisterCode_t;
 
 typedef enum
 {
     kNotOpcode,
-    kPushRegister = 0x50,
+    kPushRegister           = 0x50,
+    kPushImmediate          = 0x68,
+
+// These two instructions have same opcode,
+// So we need to divide them
+// Dont be amazed seeing kMovRegisterToRegister
+// in SetInstruction() func when is moving
+// register to memory.
+
+// That's why i don't initialize kMovRegisterToMemory
+
+    kMovRegisterToRegister  = 0x89,
+    kMovRegisterToMemory,
+
+    kRet                    = 0xC3,
+    kPopInRegister          = 0x58,
+    kMovImmediateToRegister = 0xB8,
+    kLeave                  = 0xC9,
+    kAddImmediateToRegister = 0x81,
+    kAddRegisterToRegister  = 0x01,
 } Opcode_t;
+
+typedef enum
+{
+    kRegisterMemoryMode           = 0x0,
+    kRegisterMemory8Displacement  = 0x40,
+    kRegisterMemory16Displacement = 0x80,
+    kRegister                     = 0xC0,
+} ModRmCode_t;
+
+typedef enum
+{
+    kRexHeader         = 0x40,
+    kQwordUsing        = 0x08,
+    kRegisterExtension = 0x04,
+    kSibExtension      = 0x02,
+    kModRmExtension    = 0x01,
+} RexPrefixCode_t;
 
 struct Instruction
 {
-    size_t   begin_address;
+    size_t        begin_address;
 
-    size_t   instruction_size;
+    size_t        instruction_size;
 
-    char     rex_prefix;
+    uint8_t       rex_prefix;
 
-    Opcode_t op_code;
+    uint8_t       op_code;
 
-    char     mod_rm;
+    uint8_t       mod_rm;
 
-    char     displacement;
+    uint32_t      displacement;
 
-    uint32_t immediate_arg;
+    int64_t       immediate_arg;
 };
+
+static const RegisterCode_t ArgPassingRegisters[] =
+{
+    kRSI,
+    kRDX,
+    kRCX,
+    kR8,
+    kR9
+};
+
+static const size_t kArgPassingRegisterCount = sizeof(ArgPassingRegisters) / sizeof(RegisterCode_t);
 
 #endif

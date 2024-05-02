@@ -101,8 +101,6 @@ static TreeErrs_t PrintExternalDeclarations(TreeNode      *node,
 
     while (decl_node != nullptr)
     {
-    printf("HUY %d\n", __LINE__);
-
         PrintDeclaration(decl_node->left, language_context, output_file);
 
         FRONT_PRINT("\n");
@@ -164,8 +162,6 @@ static TreeErrs_t PrintFuncDefinition(TreeNode        *node,
 
 
     PrintDefParams(params_node->left, language_context, output_file);
-
-    printf("HUY %d\n", __LINE__);
 
     FRONT_PRINT("%s\n", FindKeyword(kLeftZoneBracket));
 

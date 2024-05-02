@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     BackendContext backend_context = {0};
     BackendContextInit(&backend_context);
 
-    GetAsmInstructionsOutLanguageContext(&instruction_list, &language_context);
+    GetAsmInstructionsOutLanguageContext(&backend_context, &language_context);
 
     LanguageContextDtor(&language_context);
     BackendContextDestroy(&backend_context);

@@ -28,8 +28,6 @@ void BeginListGraphDump()
         return;
     }
 
-    printf("gay\n");
-
     fprintf(log_file, "<pre>\n");
 }
 
@@ -54,7 +52,6 @@ ListErrs_t GraphDumpList(List       *list,
                          const char *func,
                          const int   line)
 {
-    printf("GUYAKA\n");
 
     if (log_file == nullptr)
     {
@@ -109,7 +106,7 @@ ListErrs_t GraphDumpList(List       *list,
         if (list->data[i].op_code != kNotOpcode)
         {
             LOG_PRINT("node%lu [style = filled, fillcolor = \"%s\", shape=Mrecord, label = "
-                    "\"<name> NODE_%lu | {begin_address = %lu | instruction_size = %lu | REX = 0x%x | op_code = 0x%x | mod r/m = 0x%x| imm arg = %lu} |{ <next> next : %d | <prev> prev : %d}\"]\n",
+                    "\"<name> NODE_%lu | {begin_address = %lu | instruction_size = %lu | REX = 0x%x | op_code = 0x%x | mod r/m = 0x%x | displacement = %x| imm arg = %x} |{ <next> next : %d | <prev> prev : %d}\"]\n",
                     i,
                     (list->prev[i] == -1) ? "pink" : "lightblue",
                     i,

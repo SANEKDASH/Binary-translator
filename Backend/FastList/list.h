@@ -77,7 +77,7 @@ ListState_t ListDestructor(List *list);
 
 ListState_t ListAddAfter(List           *list,
                          size_t          pos,
-                         ListElemType_t  value);
+                         ListElemType_t *value);
 
 ListState_t ListFind(List           *list,
                      ListElemType_t  val,

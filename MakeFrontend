@@ -19,13 +19,16 @@ SOURCES=Frontend/main.cpp \
 		Frontend/lexer.cpp \
 		Stack/stack.cpp
 
+LDFLASG = -fsanitize=address -static-libasan
+
 OBJECTS=$(SOURCES:.cpp=.o)
+
 EXECUTABLE=front
 
 all: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
-	@$(CC) $(LDFLAGS) $(OBJECTS) -o $@
+	@$(CC) $(LDFLAGS) $(OBJECTS) -o  $@
 
 .cpp.o:
 	@$(CC) $(CFLAGS) $< -o $@
@@ -40,3 +43,4 @@ clean:
 	@rm -f Common/*.o
 	@rm -f *.exe
 	@rm -f front
+	@rm -f debug/*.o

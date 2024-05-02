@@ -341,11 +341,8 @@ static void MemSetList(List           *list)
     list->next[i] = 0;
     list->prev[i] = -1;
 
-    printf("HUY@@@\n");
 
     GRAPH_DUMP(list);
-
-    printf("HUYaka\n");
 }
 
 //================================================================================================

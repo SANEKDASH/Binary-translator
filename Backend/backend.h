@@ -19,18 +19,27 @@ typedef enum
     kBackendNullTree,
     kListConstructorError,
     kListDestructorError,
+    kBackendUnknownOpcode,
+    kBackendNotAssign,
+    kBackendNotVarDecl,
+    kCantFindNameTable,
+    kBackendDumpAlreadyStarted,
+    kBackendDumpAlreadyClosed,
+    kCantFindVariable,
 } BackendErrs_t;
 
 struct BackendContext
 {
-    List *instruction_list;
+    List   *instruction_list;
+    size_t  cur_address;
 };
 
 TreeErrs_t WriteAsmCodeInFile(LanguageContext *language_context,
                               const char      *output_file_name);
 
-BackendErrs_t GetAsmInstructionsOutLanguageContext(List            *instruction_list,
-                                                  LanguageContext *language_context);
+
+BackendErrs_t GetAsmInstructionsOutLanguageContext(BackendContext  *backend_context,
+                                                   LanguageContext *language_context);
 
 BackendErrs_t BackendContextInit   (BackendContext *backend_context);
 BackendErrs_t BackendContextDestroy(BackendContext *backend_context);

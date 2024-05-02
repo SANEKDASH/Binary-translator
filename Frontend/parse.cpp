@@ -10,7 +10,7 @@
 
 static const int kExternalTableCode = -1;
 
-static const char *id_table_file_name = "id_table.txt";
+static const char *kIdTableFileName = "id_table.txt";
 
 #define LOG_PRINT(...) fprintf(output_file, __VA_ARGS__);
 
@@ -89,9 +89,10 @@ static TreeNode *GetFuncDeclaration(TreeNode       *Identifier,
                                     size_t         *iter);
 //type
 static int PrintNameTableInFile(Identifiers *idents,
-                                NameTables     *tables);
+                                NameTables  *tables);
 
 //==============================================================================
+
 
 TreeNode *GetSyntaxTree(Identifiers  *identifiers,
                         const char *file_name)
@@ -101,6 +102,8 @@ TreeNode *GetSyntaxTree(Identifiers  *identifiers,
     CHECK(file_name);
 
     Text              program;
+
+    //error
     ReadTextFromFile(&program, file_name);
 
     BeginStackDump();
@@ -117,6 +120,7 @@ TreeNode *GetSyntaxTree(Identifiers  *identifiers,
         return nullptr;
     }
 
+
     NameTables tables;
     NameTablesInit(&tables);
 
@@ -131,6 +135,7 @@ TreeNode *GetSyntaxTree(Identifiers  *identifiers,
     size_t i = 0;
 
     TreeNode *node = GetExternalDecl(identifiers, &lexems, &tables, external_table, &i);
+
 
     TABLES_DUMP(&tables);
 
@@ -150,7 +155,6 @@ TreeNode *GetSyntaxTree(Identifiers  *identifiers,
 }
 
 //==============================================================================
-    #undef DEBUG
 
     #define GO_TO_NEXT_TOKEN ++*iter
 
@@ -174,7 +178,7 @@ TreeNode *GetSyntaxTree(Identifiers  *identifiers,
 
     #ifdef DEBUG
 
-        #define DEBUG_PRINT() printf("POS %d, LINE %d, FUNC %s\n", *iter, __LINE__, __func__)
+        #define DEBUG_PRINT() printf("POS %d, LINE %d, FUNC %s\n\n", *iter, __LINE__, __func__)
 
     #else
 
@@ -194,12 +198,12 @@ TreeNode *GetSyntaxTree(Identifiers  *identifiers,
 //==============================================================================
 
 static int PrintNameTableInFile(Identifiers *idents,
-                                NameTables     *tables)
+                                NameTables   *tables)
 {
     CHECK(idents);
     CHECK(tables);
 
-    FILE *id_file = fopen(id_table_file_name, "w");
+    FILE *id_file = fopen(kIdTableFileName, "w");
 
     if (id_file == nullptr)
     {
@@ -265,6 +269,7 @@ static TreeNode *GetExternalDecl(Identifiers  *identifiers,
     {
         return nullptr;
     }
+    printf("HUY\n");
 
     if(cur_unit->left->type == kFuncDef)
     {
@@ -273,8 +278,11 @@ static TreeNode *GetExternalDecl(Identifiers  *identifiers,
 
     DEBUG_PRINT();
 
-    while (*iter < tokens->stack_data.size - 1)
+    while (*iter < tokens->stack_data.size)
     {
+
+        printf("iterator - %d\n", *iter);
+
         DEBUG_PRINT();
 
         cur_unit->right = OP_CTOR(kEndOfLine);
@@ -433,11 +441,11 @@ static TreeNode *GetFuncDeclaration(TreeNode       *Identifier,
 
 //==============================================================================
 
-static TreeNode *GetDeclarationList(Identifiers *identifiers,
-                                    Stack          *tokens,
-                                    NameTables     *tables,
-                                    TableOfNames   *cur_table,
-                                    size_t         *iter)
+static TreeNode *GetDeclarationList(Identifiers  *identifiers,
+                                    Stack        *tokens,
+                                    NameTables   *tables,
+                                    TableOfNames *cur_table,
+                                    size_t       *iter)
 {
     CHECK(tables);
     CHECK(cur_table);
@@ -696,8 +704,8 @@ TreeNode *GetAddExpression(Identifiers *identifiers,
     DEBUG_PRINT();
 
     while ((*iter < tokens->stack_data.size  ) &&
-           (CUR_NODE_TYPE == kOperator    ) &&
-           (IsBinaryOpLower(CUR_NODE_DATA))   )
+           (CUR_NODE_TYPE == kOperator       ) &&
+           (IsBinaryOpLower(CUR_NODE_DATA)   )   )
     {
         DEBUG_PRINT();
 
@@ -769,8 +777,8 @@ TreeNode* GetConstant(Identifiers *identifiers,
 static const int kMaxIdLen = 64;
 
 TreeNode *GetIdentifier(Identifiers *identifiers,
-                           Stack          *tokens,
-                           size_t         *iter)
+                        Stack          *tokens,
+                        size_t         *iter)
 {
     CHECK(identifiers);
     CHECK(tokens);

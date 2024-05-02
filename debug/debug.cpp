@@ -39,7 +39,7 @@ void CheckIt(bool expr,
                "\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@G5PP5GGGP5PPPP5PYJB&@@@@@@@@@@@"
                "\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#BBG#&#GGBGGGGPGB&@@@@@@@@@@@@@");
 
-        printf("\n#/ Checker spotted a problem in file: %s, function: %s, line: %d", file_name, func_name, line);
+        printf("\n#/ Checker spotted a problem in file: %s, function: %s, line: %d\n", file_name, func_name, line);
         abort();
     }
 }

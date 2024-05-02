@@ -115,8 +115,6 @@ TreeErrs_t GraphDumpTree(Tree *tree,
                       line,
                       call_count);
 
-    printf("HUY\n");
-
     ++call_count;
 
     return kTreeSuccess;
