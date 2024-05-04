@@ -1,52 +1,49 @@
+section .text
+
+global main
+
+main:
 	push rbp
 
 	mov rbp, rsp
 
+	sub rsp, 16
+
+	mov rax, 1
+
+	cmp rax, 0
+
+	jbe Label1
+
+	mov rax, 10
+
+	mov rdi, rax
+
+	call хуй
+
 	mov [rbp + (-8)], rax
 
-	mov [rbp + (-16)], rax
-
-	mov [rbp + (-24)], rax
-
-	mov [rbp + (-8)], rax
-
+Label1:
 	mov rax, 0
 
 	leave
 
 	ret
 
+хуй:
 	push rbp
 
 	mov rbp, rsp
 
-	leave
+	sub rsp, 16
 
-	ret
+	mov rax, 10
 
-	push rbp
+	mov rbx, rax
 
-	mov rbp, rsp
+	mov rax, 10
 
-	mov [rbp + (-24)], rax
-
-	mov rax, 1
-
-	leave
-
-	ret
-
-	push rbp
-
-	mov rbp, rsp
-
-	mov [rbp + (-32)], rax
-
-	mov [rbp + (-40)], rax
-
-	mov [rbp + (-48)], rax
-
-	mov rax, 2
+	imul rbx
 
 	leave
 

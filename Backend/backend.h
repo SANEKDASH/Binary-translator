@@ -25,13 +25,66 @@ typedef enum
     kCantFindNameTable,
     kBackendDumpAlreadyStarted,
     kBackendDumpAlreadyClosed,
+    kBackendFailedAllocation,
     kCantFindVariable,
+    kBackendLabelTableInitError,
+    kBackendLabelTableDestroyError,
+    kBackendAddressRequestsInitError,
+    kBackendDestroyAddressRequestsError,
 } BackendErrs_t;
+
+static const int32_t kFuncLabelPosPoison          = -1;
+static const int32_t kCommonLabelIdentifierPoison = -1;
+
+struct Label
+{
+    uint32_t address;
+
+    int32_t identification_number;
+
+    int32_t func_pos;
+};
+
+struct LabelTable
+{
+    Label  *label_array;
+
+    size_t  capacity;
+
+    size_t  label_count;
+
+    uint32_t identify_counter;
+};
+
+struct Request
+{
+    Instruction *jmp_instruction;
+
+    int32_t func_pos;
+
+    int32_t label_identifier;
+};
+
+static const size_t kBaseCallRequestArraySize = 8;
+
+struct AddressRequests
+{
+    Request *requests;
+
+    size_t capacity;
+
+    size_t request_count;
+};
 
 struct BackendContext
 {
-    List   *instruction_list;
-    size_t  cur_address;
+    List            *instruction_list;
+
+    size_t           cur_address;
+
+    LabelTable      *label_table;
+
+    AddressRequests *address_requests;
 };
 
 TreeErrs_t WriteAsmCodeInFile(LanguageContext *language_context,

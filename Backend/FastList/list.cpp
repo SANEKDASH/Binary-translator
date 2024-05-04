@@ -25,6 +25,13 @@ static void MemSetList(List *list);
 
 //================================================================================================
 
+Instruction *GetLastInstruction(List *list)
+{
+    return list->data + list->tail;
+}
+
+//================================================================================================
+
 ListState_t ListVerify(List *list)
 {
     CHECK(list);

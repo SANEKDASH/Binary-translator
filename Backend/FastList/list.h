@@ -92,4 +92,6 @@ ListState_t ListDelete(List   *list,
 
 ListState_t TextDumpList(List *list);
 
+Instruction *GetLastInstruction(List *list);
+
 #endif

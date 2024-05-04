@@ -280,9 +280,6 @@ static TreeNode *GetExternalDecl(Identifiers  *identifiers,
 
     while (*iter < tokens->stack_data.size)
     {
-
-        printf("iterator - %d\n", *iter);
-
         DEBUG_PRINT();
 
         cur_unit->right = OP_CTOR(kEndOfLine);

@@ -18,24 +18,27 @@ typedef enum
 typedef enum
 {
     kNotAnOperation   = 0,
-    kLeftBracket      = 1, //�� � ���������, �� � � ������ �� ���
-    kRightBracket     = 2, //�� � ���������, �� � � ������ �� ���
-    kLeftZoneBracket  = 3, //�� � ���������, �� � � ������ �� ���
-    kRightZoneBracket = 4, //�� � ���������, �� � � ������ �� ���
+    kLeftBracket      = 1, //
+    kRightBracket     = 2, //
+    kLeftZoneBracket  = 3, //
+    kRightZoneBracket = 4, //
 
     kIf               = 11, // if
     kWhile            = 12, // while
     kAssign           = 13, // =
 
+// shit can be done only with libc funcs
+// motivation to make obj file increased
     kSin              = 21,  // sin
     kCos              = 22,  // cos
+    kSqrt             = 29,  // sqrt
+
     kFloor            = 23,  // floor
     kAdd              = 24,  // +
     kSub              = 25,  // -
     kMult             = 26,  // *
     kDiv              = 27,  // /
     kDiff             = 28,  // diff
-    kSqrt             = 29,  // sqrt
 
     kEqual            = 31, // ==
     kLess             = 32, // <

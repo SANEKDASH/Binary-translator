@@ -1,3 +1,1 @@
-section .text
-
-add RBX, RSP
+cmp rbx, 0x10101010

@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+typedef int64_t  ImmediateType_t;
+
+typedef uint32_t DisplacementType_t;
+
+static const ImmediateType_t kJmpPoison = 0x10101010;
 typedef enum
 {
     kRAX = 0x0,
@@ -13,42 +18,86 @@ typedef enum
     kRBP = 0x5,
     kRSI = 0x6,
     kRDI = 0x7,
-    kR8  = 0x0,
-    kR9  = 0x1,
-    kR10 = 0x2,
-    kR11 = 0x3,
-    kR12 = 0x4,
-    kR13 = 0x5,
-    kR14 = 0x6,
-    kR15 = 0x7,
+    kR8  = 0x8,
+    kR9  = 0x9,
+    kR10 = 0xA,
+    kR11 = 0xB,
+    kR12 = 0xC,
+    kR13 = 0xD,
+    kR14 = 0xE,
+    kR15 = 0xF,
 
     kNotRegister,
 } RegisterCode_t;
 
 typedef enum
 {
-    kNotOpcode,
-    kPushRegister           = 0x50,
-    kPushImmediate          = 0x68,
+    kPushR64          = 0x50,
+    kPushImm32        = 0x68,
 
-// These two instructions have same opcode,
-// So we need to divide them
-// Dont be amazed seeing kMovRegisterToRegister
-// in SetInstruction() func when is moving
-// register to memory.
+    kPopR64           = 0x58,
 
-// That's why i don't initialize kMovRegisterToMemory
+    kMovR64ToRm64     = 0x89,
+    kMovImmToR64      = 0xB8,
 
-    kMovRegisterToRegister  = 0x89,
-    kMovRegisterToMemory,
+    kMovImmToRm64     = 0xC7,
+    kMovRm64ToR64     = 0x8B,
 
-    kRet                    = 0xC3,
-    kPopInRegister          = 0x58,
-    kMovImmediateToRegister = 0xB8,
-    kLeave                  = 0xC9,
-    kAddImmediateToRegister = 0x81,
-    kAddRegisterToRegister  = 0x01,
+    kRet              = 0xC3,
+    kLeave            = 0xC9,
+
+    kAddImmToRm64     = 0x81,
+    kAddR64ToRm64     = 0x01,
+
+    kSubR64FromRm64   = 0x29,
+    kSubImmFromRm64   = 0x81,
+
+    kXorRm64WithR64   = 0x31,
+
+    kDivRm64          = 0xF7,
+    kImulRm64         = 0xF7,
+
+    kCmpRm64WithImm32 = 0x81,
+    kCmpRm64WithR64   = 0x39,
+
+    kJbeRel32         = 0x0f86,
+
+    kCallRel32        = 0xE8,
 } Opcode_t;
+
+typedef enum
+{
+    kNotOpcode,
+    kLogicPushRegister,
+    kLogicPushImmediate,
+
+    kLogicPopInRegister,
+
+    kLogicMovRegisterToRegister,
+    kLogicMovRegisterToMemory,
+    kLogicMovImmediateToRegister,
+    kLogicMovRmToRegister,
+
+    kLogicRet,
+    kLogicLeave,
+
+    kLogicAddImmediateToRegister,
+    kLogicAddRegisterToRegister,
+
+    kLogicSubRegisterFromRegister,
+    kLogicSubImmediateFromRegister,
+
+    kLogicXorRegisterWithRegister,
+    kLogicXorRmWithRegister,
+
+    kLogicDivRegisterOnRax,
+
+    kLogicImulRegisterOnRax,
+
+    kLogicCmpRegisterToImmediate,
+    kLogicCmpRegisterToRegister,
+    kLogicJumpIfLessOrEqual,
+} LogicalOpcode_t;
 
 typedef enum
 {
@@ -60,32 +109,38 @@ typedef enum
 
 typedef enum
 {
-    kRexHeader         = 0x40,
-    kQwordUsing        = 0x08,
-    kRegisterExtension = 0x04,
-    kSibExtension      = 0x02,
-    kModRmExtension    = 0x01,
+    kRexHeader          = 0x40,
+    kQwordUsing         = 0x08,
+    kRegisterExtension  = 0x04,
+    kSibExtension       = 0x02,
+    kModRmExtension     = 0x01,
+    kRexPrefixNoOptions = 0x0,
 } RexPrefixCode_t;
 
 struct Instruction
 {
-    size_t        begin_address;
+    uint8_t           logical_op_code;
 
-    size_t        instruction_size;
+    size_t             begin_address;
 
-    uint8_t       rex_prefix;
+    size_t             instruction_size;
 
-    uint8_t       op_code;
+    size_t             op_code_size;
 
-    uint8_t       mod_rm;
+    uint8_t            rex_prefix;
 
-    uint32_t      displacement;
+    uint16_t           op_code;
 
-    int64_t       immediate_arg;
+    uint8_t            mod_rm;
+
+    DisplacementType_t displacement;
+
+    ImmediateType_t    immediate_arg;
 };
 
 static const RegisterCode_t ArgPassingRegisters[] =
 {
+    kRDI,
     kRSI,
     kRDX,
     kRCX,

@@ -7,14 +7,26 @@
 static const char *kBackendDumpFileName = "backend_dump.asm";
 
 
-BackendErrs_t BackendDumpPrint(Instruction    *instruction,
-                               Opcode_t        opcode,
-                               RegisterCode_t  source_register,
-                               RegisterCode_t  receiver_register);
+BackendErrs_t BackendDumpPrint(Instruction     *instruction,
+                               LogicalOpcode_t  opcode,
+                               RegisterCode_t   source_register,
+                               RegisterCode_t   receiver_register);
 
+BackendErrs_t BackendPrintJump(Opcode_t jump_code,
+                               size_t   label_pos);
+
+BackendErrs_t BackendDumpPrintLabel(size_t label_pos);
+
+
+BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
+                                        size_t           func_pos);
 BackendErrs_t BeginBackendDump();
 
 BackendErrs_t EndBackendDump();
+
+
+BackendErrs_t BackendPrintCall(LanguageContext *language_context,
+                               size_t           func_pos);
 
 struct Register
 {
