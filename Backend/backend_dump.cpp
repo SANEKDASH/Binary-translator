@@ -2,7 +2,8 @@
 
 static FILE *BackendDumpFile = nullptr;
 
-//==============================================================================
+static uint8_t GetDestRegister(Instruction *instruction);
+static uint8_t GetSrcRegister (Instruction *instruction);
 
 BackendErrs_t BeginBackendDump()
 {
@@ -52,95 +53,102 @@ BackendErrs_t EndBackendDump()
 
 //==============================================================================
 
-BackendErrs_t BackendDumpPrintLabel(size_t label_pos)
-{
-    DUMP_PRINT("Label%d:\n\n", label_pos);
-
-    return kBackendSuccess;
-}
+static const size_t kDestRegisterMask = 0x7;
+static const size_t kSrcRegisterMask  = kDestRegisterMask << 3;
 
 //==============================================================================
 
-BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
-                                        size_t           func_pos)
+static uint8_t GetSrcRegister(Instruction *instruction)
 {
-    if (func_pos == language_context->tables.main_id_pos)
-    {
-        DUMP_PRINT("main:\n");
-    }
-    else
-    {
-        DUMP_PRINT("%s:\n", language_context->identifiers.identifier_array[func_pos].id);
-
-    }
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-BackendErrs_t BackendPrintCall(LanguageContext *language_context,
-                               size_t           func_pos)
-{
-    DUMP_PRINT("\tcall %s\n\n", language_context->identifiers.identifier_array[func_pos].id);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-BackendErrs_t BackendPrintJump(Opcode_t jump_code,
-                               size_t   label_pos)
-{
-    switch (jump_code)
-    {
-        case kJbeRel32:
-        {
-            DUMP_PRINT("\tjbe Label%d\n", label_pos);
-
-            break;
-        }
-
-        default:
-        {
-            ColorPrintf(kRed, "%s() unknown jump code %d\n", jump_code);
-
-            return kBackendUnknownOpcode;
-
-            break;
-        }
-    }
-
-    DUMP_PRINT("\n");
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-BackendErrs_t BackendDumpPrint(Instruction     *instruction,
-                               LogicalOpcode_t  opcode,
-                               RegisterCode_t   source_register,
-                               RegisterCode_t   receiver_register)
-{
-    size_t source_reg   = source_register;
-    size_t receiver_reg = receiver_register;
+    uint8_t src_register_code = (instruction->mod_rm & kSrcRegisterMask) >> 3;
 
     if (instruction->rex_prefix & kRegisterExtension)
     {
-        source_reg |= 1 << 3;
+        src_register_code |= 1 << 3;
     }
+
+    return src_register_code;
+}
+
+//==============================================================================
+
+static uint8_t GetDestRegister(Instruction *instruction)
+{
+    uint8_t dest_register_code =  (instruction->mod_rm & kDestRegisterMask);
 
     if (instruction->rex_prefix & kModRmExtension)
     {
-        receiver_reg |= 1 << 3;
+        dest_register_code |= 1 << 3;
     }
 
-    switch (opcode)
+    return dest_register_code;
+}
+
+//==============================================================================
+
+BackendErrs_t BackendDumpPrintCall()
+{
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+BackendErrs_t DumpPrintFuncLabel(int32_t func_pos)
+{
+    DUMP_PRINT("func_%d:\n", func_pos);
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+BackendErrs_t BackendDumpPrintCall(int32_t func_pos)
+{
+    DUMP_PRINT("\tcall func_%d\n\n", func_pos);
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+BackendErrs_t DumpPrintCommonLabel(int32_t identification_number)
+{
+    DUMP_PRINT("label_%d:\n", identification_number);
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+BackendErrs_t BackendDumpPrintJump(Instruction *instruction,
+                                   int32_t      label_identifier)
+{
+    size_t jump_pos = 0;
+
+    while (instruction->logical_op_code != kJumpsArray[jump_pos].logical_op_code)
+    {
+        jump_pos++;
+    }
+
+    DUMP_PRINT("\t%s label_%d\n\n", kJumpsArray[jump_pos].jump_str,
+                                    label_identifier);
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+BackendErrs_t BackendDumpPrintInstruction(BackendContext  *backend_context,
+                                          Instruction     *instruction)
+{
+    uint8_t source_register   = GetSrcRegister(instruction);
+    uint8_t receiver_register = GetDestRegister(instruction);
+
+    switch (instruction->logical_op_code)
     {
         case kLogicPushRegister:
         {
-            DUMP_PRINT("\tpush %s\n", SOURCE_REGISTER);
+            DUMP_PRINT("\tpush %s\n", kRegisterArray[instruction->op_code - kPushR64]);
 
             break;
         }
@@ -176,7 +184,7 @@ BackendErrs_t BackendDumpPrint(Instruction     *instruction,
 
         case kLogicPopInRegister:
         {
-            DUMP_PRINT("\tpop %s\n", receiver_register);
+            DUMP_PRINT("\tpop %s\n", RECEIVER_REGISTER);
 
             break;
         }
@@ -262,7 +270,7 @@ BackendErrs_t BackendDumpPrint(Instruction     *instruction,
 
         default:
         {
-            ColorPrintf(kRed, "%s() - unknown opcode %d\n", __func__, opcode);
+            ColorPrintf(kRed, "%s() - unknown opcode %d\n", __func__, instruction->logical_op_code);
 
             break;
         }

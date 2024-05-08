@@ -17,7 +17,7 @@ static const char *kPictureBaseName = "Backend/ListDump/dump_src/list_graph_dump
 
 void BeginListGraphDump()
 {
-    system("rm -f *.png");
+    system("rm -f Backend/ListDump/dump_src/*.png");
 
     log_file = fopen(kLogFileName, "w");
 
@@ -106,7 +106,7 @@ ListErrs_t GraphDumpList(List       *list,
         if (list->data[i].op_code != kNotOpcode)
         {
             LOG_PRINT("node%lu [style = filled, fillcolor = \"%s\", shape=Mrecord, label = "
-                    "\"<name> NODE_%lu | {begin_address = %lu | instruction_size = %lu | REX = 0x%x | op_code = 0x%x | mod r/m = 0x%x | displacement = %x| imm arg = %x} |{ <next> next : %d | <prev> prev : %d}\"]\n",
+                    "\"<name> NODE_%lu | {begin_address = %lu | instruction_size = %lu | REX = 0x%x | op_code = 0x%x | mod r/m = 0x%x | displacement = %d| imm arg = %d} |{ <next> next : %d | <prev> prev : %d}\"]\n",
                     i,
                     (list->prev[i] == -1) ? "pink" : "lightblue",
                     i,

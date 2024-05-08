@@ -7,26 +7,22 @@
 static const char *kBackendDumpFileName = "backend_dump.asm";
 
 
-BackendErrs_t BackendDumpPrint(Instruction     *instruction,
-                               LogicalOpcode_t  opcode,
-                               RegisterCode_t   source_register,
-                               RegisterCode_t   receiver_register);
 
-BackendErrs_t BackendPrintJump(Opcode_t jump_code,
-                               size_t   label_pos);
+BackendErrs_t BackendDumpPrintInstruction(BackendContext  *backend_context,
+                                          Instruction     *instruction);
 
-BackendErrs_t BackendDumpPrintLabel(size_t label_pos);
+BackendErrs_t BackendDumpPrintJump(Instruction *instruction,
+                                   int32_t      label_identifier);
 
+BackendErrs_t DumpPrintCommonLabel(int32_t identification_number);
 
-BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
-                                        size_t           func_pos);
 BackendErrs_t BeginBackendDump();
 
+BackendErrs_t BackendDumpPrintCall(int32_t func_pos);
+
+BackendErrs_t DumpPrintFuncLabel(int32_t func_pos);
+
 BackendErrs_t EndBackendDump();
-
-
-BackendErrs_t BackendPrintCall(LanguageContext *language_context,
-                               size_t           func_pos);
 
 struct Register
 {
@@ -34,7 +30,7 @@ struct Register
     size_t code;
 };
 
-static Register kRegisterArray[] =
+static const Register kRegisterArray[] =
 {
     "rax", 0x0,
     "rcx", 0x1,

@@ -31,6 +31,7 @@ typedef enum
     kBackendLabelTableDestroyError,
     kBackendAddressRequestsInitError,
     kBackendDestroyAddressRequestsError,
+    kBackendNullArgs,
 } BackendErrs_t;
 
 static const int32_t kFuncLabelPosPoison          = -1;
@@ -40,9 +41,9 @@ struct Label
 {
     uint32_t address;
 
-    int32_t identification_number;
+    int32_t  identification_number;
 
-    int32_t func_pos;
+    int32_t  func_pos;
 };
 
 struct LabelTable
@@ -58,7 +59,7 @@ struct LabelTable
 
 struct Request
 {
-    Instruction *jmp_instruction;
+    size_t jmp_instruction_list_pos;
 
     int32_t func_pos;
 

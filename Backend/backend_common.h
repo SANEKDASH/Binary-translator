@@ -38,13 +38,13 @@ typedef enum
     kPopR64           = 0x58,
 
     kMovR64ToRm64     = 0x89,
-    kMovImmToR64      = 0xB8,
+    kMovImmToR64      = 0xb8,
 
-    kMovImmToRm64     = 0xC7,
-    kMovRm64ToR64     = 0x8B,
+    kMovImmToRm64     = 0xc7,
+    kMovRm64ToR64     = 0x8b,
 
-    kRet              = 0xC3,
-    kLeave            = 0xC9,
+    kRet              = 0xc3,
+    kLeave            = 0xc9,
 
     kAddImmToRm64     = 0x81,
     kAddR64ToRm64     = 0x01,
@@ -54,15 +54,24 @@ typedef enum
 
     kXorRm64WithR64   = 0x31,
 
-    kDivRm64          = 0xF7,
-    kImulRm64         = 0xF7,
+    kDivRm64          = 0xf7,
+    kImulRm64         = 0xf7,
 
     kCmpRm64WithImm32 = 0x81,
     kCmpRm64WithR64   = 0x39,
 
     kJbeRel32         = 0x0f86,
+    kJbRel32          = 0x0f82,
 
-    kCallRel32        = 0xE8,
+    kJaeRel32         = 0x0f83,
+    kJaRel32          = 0x0f87,
+
+    kJeRel32          = 0x0f84,
+    kJneRel32         = 0x0f85,
+
+    kJmpRel32         = 0x0e9,
+
+    kCallRel32        = 0xe8,
 } Opcode_t;
 
 typedef enum
@@ -79,6 +88,7 @@ typedef enum
     kLogicMovRmToRegister,
 
     kLogicRet,
+    kLogicCall,
     kLogicLeave,
 
     kLogicAddImmediateToRegister,
@@ -96,7 +106,17 @@ typedef enum
 
     kLogicCmpRegisterToImmediate,
     kLogicCmpRegisterToRegister,
+
     kLogicJumpIfLessOrEqual,
+    kLogicJumpIfLess,
+
+    kLogicJumpIfAbove,
+    kLogicJumpIfAboveOrEqual,
+
+    kLogicJumpIfEqual,
+    kLogicJumpIfNotEqual,
+
+    kLogicJmp,
 } LogicalOpcode_t;
 
 typedef enum
@@ -114,12 +134,14 @@ typedef enum
     kRegisterExtension  = 0x04,
     kSibExtension       = 0x02,
     kModRmExtension     = 0x01,
-    kRexPrefixNoOptions = 0x0,
+    kRexPrefixNoOptions = 0x00,
 } RexPrefixCode_t;
 
 struct Instruction
 {
-    uint8_t           logical_op_code;
+    int32_t            label_identifier;
+
+    uint8_t            logical_op_code;
 
     size_t             begin_address;
 
@@ -149,5 +171,28 @@ static const RegisterCode_t ArgPassingRegisters[] =
 };
 
 static const size_t kArgPassingRegisterCount = sizeof(ArgPassingRegisters) / sizeof(RegisterCode_t);
+
+struct Jump
+{
+    LogicalOpcode_t  logical_op_code;
+    const char      *jump_str;
+};
+
+static const Jump kJumpsArray[] =
+{
+    kLogicJumpIfLessOrEqual, "jbe",
+    kLogicJumpIfLess,        "je",
+
+    kLogicJumpIfAbove,       "ja",
+    kLogicJumpIfAboveOrEqual,"jae",
+
+    kLogicJumpIfEqual,       "je",
+    kLogicJumpIfNotEqual,    "jne",
+
+    kLogicJmp,               "jne",
+};
+
+static const size_t kJumpCount = sizeof(kJumpsArray) / sizeof(Jump);
+
 
 #endif
