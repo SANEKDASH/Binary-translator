@@ -50,4 +50,7 @@ clean:
 	@rm -f back
 	@rm -f Backend/FastList/*.o
 	@rm -f Backend/ListDump/*.o
+	@rm -f Backend/ListDump/dump_src/*.png
+	@rm -f Backend/ListDump/dump_src/*.svg
+	@rm -f Backend/ListDump/dump_src/*.dot
 	@rm -f Backend/*.o
