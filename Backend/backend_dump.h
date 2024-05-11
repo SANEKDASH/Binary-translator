@@ -6,21 +6,24 @@
 
 static const char *kBackendDumpFileName = "backend_dump.asm";
 
-
-
 BackendErrs_t BackendDumpPrintInstruction(BackendContext  *backend_context,
                                           Instruction     *instruction);
 
 BackendErrs_t BackendDumpPrintJump(Instruction *instruction,
                                    int32_t      label_identifier);
 
+BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
+                                       int32_t          func_pos);
+
 BackendErrs_t DumpPrintCommonLabel(int32_t identification_number);
 
 BackendErrs_t BeginBackendDump();
 
-BackendErrs_t BackendDumpPrintCall(int32_t func_pos);
+BackendErrs_t BackendDumpPrintCall(LanguageContext *language_context,
+                                   int32_t          func_pos);
 
-BackendErrs_t DumpPrintFuncLabel(int32_t func_pos);
+BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
+                                        int32_t          func_pos);
 
 BackendErrs_t EndBackendDump();
 

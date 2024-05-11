@@ -24,7 +24,8 @@ SOURCES = Backend/main.cpp \
 		  Backend/FastList/list.cpp \
 		  Backend/ListDump/list_dump.cpp \
 		  Backend/backend_dump.cpp \
-		  Backend/elf_ctor.cpp
+		  Backend/elf_ctor.cpp \
+		  Backend/instruction_encoding.cpp
 
 OBJECTS = $(SOURCES:.cpp=.o)
 

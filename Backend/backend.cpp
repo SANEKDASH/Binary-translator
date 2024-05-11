@@ -5,6 +5,8 @@
 #include "backend_common.h"
 #include "backend_dump.h"
 
+#include "instruction_encoding.h"
+
 static const char *id_table_file_name = "id_table.txt";
 
 static BackendErrs_t GetVariablePos(TableOfNames *table,
@@ -79,76 +81,14 @@ static BackendErrs_t InitLabelTable(LabelTable *label_table);
 static BackendErrs_t ReallocLabelTable(LabelTable *label_table,
                                        size_t      new_size);
 
-static BackendErrs_t EncodeLeave(BackendContext *backend_context);
 
-static BackendErrs_t EncodeCmpRegisterWithRegister(BackendContext *backend_context,
-                                                   RegisterCode_t  dest_reg,
-                                                   RegisterCode_t  src_reg);
+static BackendErrs_t InitStringTable(StringTable *strings);
 
-static BackendErrs_t EncodeCmpRegisterWithImmediate(BackendContext *backend_context,
-                                                    RegisterCode_t  dest_reg,
-                                                    ImmediateType_t immediate);
-
-static BackendErrs_t EncodeImulRegister(BackendContext *backend_context,
-                                        RegisterCode_t  dest_reg);
-
-static BackendErrs_t EncodeDivRegister(BackendContext *backend_context,
-                                       RegisterCode_t  dest_reg);
-
-static BackendErrs_t EncodeXorRegisterWithRegister(BackendContext *backend_context,
-                                                   RegisterCode_t  dest_reg,
-                                                   RegisterCode_t  src_reg);
-
-static BackendErrs_t EncodeSubImmediateFromRegister(BackendContext *backend_context,
-                                                    RegisterCode_t  dest_reg,
-                                                    ImmediateType_t immediate);
-
-static BackendErrs_t EncodeSubRegisterFromRegister(BackendContext *backend_context,
-                                                   RegisterCode_t  src_reg,
-                                                   RegisterCode_t  dest_reg);
-
-static BackendErrs_t EncodeMovRegisterMemoryToRegister(BackendContext     *backend_context,
-                                                       RegisterCode_t      src_reg,
-                                                       RegisterCode_t      dest_reg,
-                                                       DisplacementType_t  displacement);
-
-static BackendErrs_t EncodeAddRegisterToRegister(BackendContext *backend_context,
-                                                 RegisterCode_t  src_reg,
-                                                 RegisterCode_t  dest_reg);
-
-static BackendErrs_t EncodeAddImmediateToRegister(BackendContext  *backend_context,
-                                                  ImmediateType_t  immediate,
-                                                  RegisterCode_t   dest_reg);
-
-static BackendErrs_t EncodeMovRegisterToRegisterMemory(BackendContext     *backend_context,
-                                                       RegisterCode_t      src_reg,
-                                                       RegisterCode_t      dest_reg,
-                                                       DisplacementType_t  displacement);
-
-static BackendErrs_t EncodeMovImmediateToRegister(BackendContext  *backend_context,
-                                                  ImmediateType_t  immediate,
-                                                  RegisterCode_t   dest_reg);
-
-static BackendErrs_t EncodePopInRegister(BackendContext *backend_context,
-                                         RegisterCode_t  dest_reg);
-
-static BackendErrs_t EncodeRet(BackendContext *backend_context);
-
-static BackendErrs_t EncodeMovRegisterToRegister(BackendContext *backend_context,
-                                                 RegisterCode_t  src_reg,
-                                                 RegisterCode_t  dest_reg);
-
-static BackendErrs_t EncodePushRegister(BackendContext *backend_context,
-                                        RegisterCode_t  reg);
-
-static BackendErrs_t EncodeCall(BackendContext  *backend_context,
-                                LanguageContext *language_context,
-                                size_t           func_pos);
-
-static size_t AddLabel(LabelTable *label_table,
-                       size_t      address,
-                       int32_t     func_pos,
-                       int32_t     identification_number);
+static size_t AddLabel(LanguageContext *language_context,
+                       LabelTable      *label_table,
+                       size_t           address,
+                       int32_t          func_pos,
+                       int32_t          identification_number);
 
 static size_t GetCurSize(BackendContext *backend_context);
 
@@ -159,14 +99,10 @@ static BackendErrs_t RespondAddressRequests(BackendContext *backend_context);
 
 static BackendErrs_t DestroyLabelTable(LabelTable *label_table);
 
-static bool IsNewRegister(RegisterCode_t reg);
-
 static BackendErrs_t PassFuncArgs(BackendContext  *backend_context,
                                   LanguageContext *language_context,
                                   TreeNode        *cur_node,
                                   TableOfNames    *cur_table);
-
-static RegisterCode_t GetRegisterBase(RegisterCode_t reg);
 
 static BackendErrs_t InitAddressRequests(AddressRequests *address_requests);
 
@@ -178,39 +114,168 @@ static BackendErrs_t AddAddressRequest(AddressRequests *address_requests,
                                        int32_t          func_pos,
                                        int32_t          label_identifier);
 
-
-static BackendErrs_t EncodeJump(BackendContext  *backend_context,
-                                LogicalOpcode_t  logical_opcode,
-                                Opcode_t         op_code,
-                                int32_t          label_identifier);
-
 static BackendErrs_t ReallocAddressRequests(AddressRequests *address_requests,
                                             size_t           new_size);
 
 static BackendErrs_t SetCallRelativeAddress(Instruction *call_instruction,
                                             uint32_t     address);
 
-static BackendErrs_t AddFuncLabelRequest(BackendContext *backend_context,
-                                         size_t          jump_instruction_list_pos,
-                                         int32_t         func_pos);
-
-static BackendErrs_t AddCommonLabelRequest(BackendContext *backend_context,
-                                           size_t          jump_instruction_list_pos,
-                                           int32_t         identification_number);
-
 static int32_t AddLabelIdentifier(BackendContext *backend_context);
 
-static bool IsImmediateUsing(LogicalOpcode_t logical_op_code);
+static BackendErrs_t AddString(StringTable *strings,
+                               char        *str);
 
-static bool IfDisplacementUsing(LogicalOpcode_t logical_op_code);
+static BackendErrs_t ReallocStringTable(StringTable *strings,
+                                        size_t       new_size);
 
-static size_t if_count         = 0;
-static size_t logical_op_count = 0;
-static size_t cycle_op_count   = 0;
+static BackendErrs_t ReallocSymbolTable(SymbolTable *sym_table,
+                                        size_t       new_size);
 
+static BackendErrs_t InitRelocationTable   (RelocationTable *relocation_table);
+static BackendErrs_t DestroyRelocationTable(RelocationTable *relocation_table);
+static BackendErrs_t ReallocRelocationTable(RelocationTable *relocation_table,
+                                            size_t           new_size);
+static BackendErrs_t AddRelocation         (RelocationTable *relocation_table,
+                                            Elf64_Rela      *relocation);
 
+//==============================================================================
 
-static size_t kBaseLabelTableSize = 32;
+static BackendErrs_t InitRelocationTable(RelocationTable *relocation_table)
+{
+
+    relocation_table->relocation_array = (Elf64_Rela *) calloc(relocation_table->capacity, sizeof(Elf64_Rela));
+
+    relocation_table->capacity = kBaseRelocationTableCapacity;
+    relocation_table->relocation_count = 0;
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static BackendErrs_t DestroyRelocationTable(RelocationTable *relocation_table)
+{
+    free(relocation_table->relocation_array);
+
+    relocation_table->capacity = 0;
+
+    relocation_table->relocation_count = 0;
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static BackendErrs_t AddRelocation(RelocationTable *relocation_table,
+                                   Elf64_Rela      *relocation)
+{
+    if (relocation_table->relocation_count >= relocation_table->capacity)
+    {
+        ReallocRelocationTable(relocation_table, relocation_table->capacity * 2);
+    }
+
+    relocation_table->relocation_array[relocation_table->relocation_count] = *relocation;
+
+    relocation_table->relocation_count += 1;
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static BackendErrs_t ReallocRelocationTable(RelocationTable *relocation_table,
+                                            size_t           new_size)
+{
+    relocation_table->capacity = new_size;
+
+    relocation_table->relocation_array = (Elf64_Rela *) realloc(relocation_table->relocation_array,
+                                                                sizeof(Elf64_Rela) * relocation_table->capacity);
+    if (relocation_table->relocation_array == nullptr)
+    {
+        ColorPrintf(kRed, "%s() failed reallocation\n", __func__);
+
+        return kBackendFailedAllocation;
+    }
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static BackendErrs_t InitSymbolTable(SymbolTable *sym_table)
+{
+    sym_table->capacity = kBaseSymbolTableCapacity;
+
+    sym_table->sym_array = (Elf64_Sym *) calloc(sym_table->capacity, sizeof(Elf64_Sym));
+
+    if (sym_table->sym_array == nullptr)
+    {
+        return kBackendFailedAllocation;
+    }
+
+    sym_table->sym_count = 0;
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static BackendErrs_t DestroySymbolTable(SymbolTable *sym_table)
+{
+    free(sym_table->sym_array);
+
+    sym_table->sym_array = nullptr;
+
+    sym_table->capacity = 0;
+
+    sym_table->sym_count = 0;
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static BackendErrs_t AddSymbol(SymbolTable *sym_table,
+                               Elf64_Word   string_table_name,
+                               unsigned char info,
+                               unsigned char visibility,
+                               Elf64_Section section_index,
+                               Elf64_Addr    value,
+                               Elf64_Xword   symbol_size)
+{
+    if (sym_table->sym_count >= sym_table->capacity)
+    {
+        ReallocSymbolTable(sym_table, sym_table->capacity * 2);
+    }
+
+    sym_table->sym_array[sym_table->sym_count].st_name  = string_table_name;
+    sym_table->sym_array[sym_table->sym_count].st_info  = info;
+    sym_table->sym_array[sym_table->sym_count].st_other = visibility;
+    sym_table->sym_array[sym_table->sym_count].st_shndx = section_index;
+    sym_table->sym_array[sym_table->sym_count].st_value = value;
+    sym_table->sym_array[sym_table->sym_count].st_size  = symbol_size;
+
+    sym_table->sym_count += 1;
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static BackendErrs_t ReallocSymbolTable(SymbolTable *sym_table,
+                                        size_t       new_size)
+{
+    sym_table->capacity = new_size;
+
+    sym_table->sym_array = (Elf64_Sym *) realloc(sym_table->sym_array, sym_table->capacity);
+
+    for (size_t i = sym_table->sym_count; i < sym_table->capacity; i++)
+    {
+        sym_table->sym_array[i] = {0};
+    }
+
+    return kBackendSuccess;
+}
 
 //==============================================================================
 
@@ -243,20 +308,21 @@ static BackendErrs_t DestroyAddressRequests(AddressRequests *address_requests)
 
 //==============================================================================
 
-static BackendErrs_t AddFuncLabelRequest(BackendContext *backend_context,
-                                         size_t          jump_instruction_list_pos,
-                                         int32_t         func_pos)
+BackendErrs_t AddFuncLabelRequest(BackendContext *backend_context,
+                                  size_t          jump_instruction_list_pos,
+                                  int32_t         func_pos)
 {
     return AddAddressRequest(backend_context->address_requests,
                              jump_instruction_list_pos,
                              func_pos,
                              kCommonLabelIdentifierPoison);
 }
+
 //==============================================================================
 
-static BackendErrs_t AddCommonLabelRequest(BackendContext *backend_context,
-                                           size_t          jump_instruction_list_pos,
-                                           int32_t         identification_number)
+BackendErrs_t AddCommonLabelRequest(BackendContext *backend_context,
+                                    size_t          jump_instruction_list_pos,
+                                    int32_t         identification_number)
 {
     return AddAddressRequest(backend_context->address_requests,
                              jump_instruction_list_pos,
@@ -289,6 +355,7 @@ static BackendErrs_t ReallocAddressRequests(AddressRequests *address_requests,
                                             size_t           new_size)
 {
     address_requests->capacity = new_size;
+
     address_requests->requests = (Request *) realloc(address_requests->requests,
                                                      address_requests->capacity * sizeof(Request));
 
@@ -370,10 +437,11 @@ static BackendErrs_t ReallocLabelTable(LabelTable *label_table,
 
 //==============================================================================
 
-static size_t AddLabel(LabelTable *label_table,
-                       size_t      address,
-                       int32_t     func_pos,
-                       int32_t     identification_number)
+static size_t AddLabel(LanguageContext *language_context,
+                       LabelTable      *label_table,
+                       size_t           address,
+                       int32_t          func_pos,
+                       int32_t          identification_number)
 {
     if (label_table->label_count >= label_table->capacity)
     {
@@ -391,7 +459,7 @@ static size_t AddLabel(LabelTable *label_table,
     }
     else if (func_pos != kFuncLabelPosPoison)
     {
-        DumpPrintFuncLabel(func_pos);
+        BackendDumpPrintFuncLabel(language_context, func_pos);
     }
 
     return label_table->label_count - 1;
@@ -437,6 +505,92 @@ BackendErrs_t BackendContextInit(BackendContext *backend_context)
         return kBackendAddressRequestsInitError;
     }
 
+    backend_context->strings = (StringTable *) calloc(1, sizeof(StringTable));
+
+    if (InitStringTable(backend_context->strings) != kBackendSuccess)
+    {
+        return kBackendFailedAllocation;
+    }
+
+    backend_context->symbol_table = (SymbolTable *) calloc(1, sizeof(SymbolTable));
+
+    if (InitSymbolTable(backend_context->symbol_table) != kBackendSuccess)
+    {
+        return kBackendFailedAllocation;
+    }
+
+    backend_context->relocation_table = (RelocationTable *) calloc(1, sizeof(RelocationTable));
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static BackendErrs_t InitStringTable(StringTable *strings)
+{
+    strings->capacity = kBaseStringTableCapacity;
+
+    strings->cur_size = 0;
+
+    strings->byte_array = (char *) calloc(strings->capacity, sizeof(char));
+
+    if (strings->byte_array == nullptr)
+    {
+        return kBackendFailedAllocation;
+    }
+
+    strings->cur_size += 1;
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static BackendErrs_t AddString(StringTable *strings,
+                               char        *str)
+{
+    size_t size = strlen(str) + 1;
+
+    if (strings->cur_size + size >= strings->capacity)
+    {
+        ReallocStringTable(strings, strings->capacity * 2);
+    }
+
+    sprintf(strings->byte_array + strings->cur_size, "%s", str);
+
+    strings->cur_size += size;
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static BackendErrs_t ReallocStringTable(StringTable *strings,
+                                        size_t       new_size)
+{
+    strings->capacity = new_size;
+
+    strings->byte_array = (char *) realloc(strings->byte_array, strings->capacity);
+
+    if (strings->byte_array == nullptr)
+    {
+        return kBackendFailedAllocation;
+    }
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static BackendErrs_t DestroyStringTable(StringTable *strings)
+{
+    free(strings->byte_array);
+
+    strings->byte_array = nullptr;
+
+    strings->capacity = 0;
+    strings->cur_size = 0;
+
     return kBackendSuccess;
 }
 
@@ -472,6 +626,20 @@ BackendErrs_t BackendContextDestroy(BackendContext *backend_context)
     free(backend_context->address_requests);
 
     backend_context->address_requests = nullptr;
+
+    DestroyStringTable(backend_context->strings);
+
+    free(backend_context->strings);
+
+    backend_context->strings = nullptr;
+
+    DestroySymbolTable(backend_context->symbol_table);
+
+    free(backend_context->symbol_table);
+
+    backend_context->symbol_table = nullptr;
+
+    free(backend_context->relocation_table);
 
     return kBackendSuccess;
 }
@@ -609,7 +777,8 @@ static BackendErrs_t AsmFuncDeclaration(BackendContext  *backend_context,
         return kCantFindNameTable;
     }
 
-    AddLabel(backend_context->label_table,
+    AddLabel(language_context,
+             backend_context->label_table,
              backend_context->cur_address,
              cur_node->data.variable_pos,
              kCommonLabelIdentifierPoison);
@@ -632,13 +801,6 @@ static BackendErrs_t AsmFuncDeclaration(BackendContext  *backend_context,
                             language_context->tables.name_tables[name_table_pos]);
 
     return kBackendSuccess;;
-}
-
-//==============================================================================
-
-static bool IsNewRegister(RegisterCode_t reg)
-{
-    return reg >> 3;
 }
 
 //==============================================================================
@@ -681,9 +843,12 @@ static bool IsNewRegister(RegisterCode_t reg)
 
 #define JUMP(label_id)                                                     EncodeJump(backend_context, kLogicJmp,                kJmpRel32, label_id)
 
-#define ADD_INSTRUCTION(instr)                                             ListAddAfter(backend_context->instruction_list, backend_context->instruction_list->tail, instr);
 
 #define CALL(func_pos)                                                     EncodeCall(backend_context, language_context, func_pos)
+
+#define AND(dest_reg, source_reg)                                          EncodeRegisterAndRegister(backend_context, dest_reg, source_reg);
+
+#define OR(dest_reg, source_reg)                                           EncodeRegisterOrRegister(backend_context, dest_reg, source_reg)
 //==============================================================================
 
 static BackendErrs_t AsmLanguageInstructions(BackendContext  *backend_context,
@@ -950,365 +1115,61 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
 
                 size_t label_pos = 0;
 
-                AddLabel(backend_context->label_table,
+                AddLabel(language_context,
+                         backend_context->label_table,
                          backend_context->cur_address,
                          kFuncLabelPosPoison,
                          cur_identify);
                 break;
             }
 
-            case kMore:
-            {
-                ASM_OPERATOR(cur_node->right);
-
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                ASM_OPERATOR(cur_node->left);
-
-                CMP_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                int32_t logic_op_start_label_id = AddLabelIdentifier(backend_context);
-                int32_t logic_op_end_label_id   = AddLabelIdentifier(backend_context);
-
-                JUMP_IF_ABOVE(logic_op_start_label_id);
-
-                int32_t jump_on_start_pos = backend_context->instruction_list->tail;
-
-                JUMP(logic_op_end_label_id);
-
-                int32_t jump_on_end_pos = backend_context->instruction_list->tail;
-
-                size_t start_label_pos = AddLabel(backend_context->label_table,
-                                                  backend_context->cur_address,
-                                                  kFuncLabelPosPoison,
-                                                  logic_op_start_label_id);
-
-                MOV_IMM_TO_REGISTER(1, kRAX);
-
-                size_t end_label_pos = AddLabel(backend_context->label_table,
-                                                backend_context->cur_address,
-                                                kFuncLabelPosPoison,
-                                                logic_op_end_label_id);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_start_pos],
-                                        backend_context->label_table->label_array[start_label_pos].address);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_pos],
-                                        backend_context->label_table->label_array[end_label_pos].address);
-
-                break;
+#define LOGICAL_OPERATOR_CODE_GEN(const_name, encode_func_name, code)                                           \
+            case const_name:                                                                                    \
+            {                                                                                                   \
+                ASM_OPERATOR(cur_node->right);                                                                  \
+                                                                                                                \
+                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);                                                           \
+                                                                                                                \
+                ASM_OPERATOR(cur_node->left);                                                                   \
+                                                                                                                \
+                code                                                                                            \
+                                                                                                                \
+                CMP_REGISTER_TO_REGISTER(kRAX, kRBX);                                                           \
+                                                                                                                \
+                int32_t logic_op_start_label_id = AddLabelIdentifier(backend_context);                          \
+                int32_t logic_op_end_label_id   = AddLabelIdentifier(backend_context);                          \
+                                                                                                                \
+                encode_func_name(logic_op_start_label_id);                                                      \
+                                                                                                                \
+                int32_t jump_on_start_pos = backend_context->instruction_list->tail;                            \
+                                                                                                                \
+                JUMP(logic_op_start_label_id);                                                                  \
+                                                                                                                \
+                int32_t jump_on_end_pos = backend_context->instruction_list->tail;                              \
+                                                                                                                \
+                size_t start_label_pos = AddLabel(language_context,                                             \
+                                                  backend_context->label_table,                                 \
+                                                  backend_context->cur_address,                                 \
+                                                  kFuncLabelPosPoison,                                          \
+                                                  logic_op_start_label_id);                                     \
+                MOV_IMM_TO_REGISTER(1, kRAX);                                                                   \
+                                                                                                                \
+                size_t end_label_pos = AddLabel(language_context,                                               \
+                                                backend_context->label_table,                                   \
+                                                backend_context->cur_address,                                   \
+                                                kFuncLabelPosPoison,                                            \
+                                                logic_op_end_label_id);                                         \
+                                                                                                                \
+                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_start_pos],             \
+                                        backend_context->label_table->label_array[start_label_pos].address);    \
+                                                                                                                \
+                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_pos],               \
+                                        backend_context->label_table->label_array[end_label_pos].address);      \
+                                                                                                                \
+                break;                                                                                          \
             }
 
-            case kEqual:
-            {
-                ASM_OPERATOR(cur_node->right);
-
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                ASM_OPERATOR(cur_node->left);
-
-                CMP_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                int32_t logic_op_start_label_id = AddLabelIdentifier(backend_context);
-                int32_t logic_op_end_label_id   = AddLabelIdentifier(backend_context);
-
-                JUMP_IF_EQUAL(logic_op_start_label_id);
-
-                int32_t jump_on_start_pos = backend_context->instruction_list->tail;
-
-                MOV_IMM_TO_REGISTER(0, kRAX);
-
-                JUMP(logic_op_end_label_id);
-
-                int32_t jump_on_end_pos = backend_context->instruction_list->tail;
-
-                size_t start_label_pos = AddLabel(backend_context->label_table,
-                                                  backend_context->cur_address,
-                                                  kFuncLabelPosPoison,
-                                                  logic_op_start_label_id);
-
-                MOV_IMM_TO_REGISTER(1, kRAX);
-
-                size_t end_label_pos = AddLabel(backend_context->label_table,
-                                                backend_context->cur_address,
-                                                kFuncLabelPosPoison,
-                                                logic_op_end_label_id);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_start_pos],
-                                        backend_context->label_table->label_array[start_label_pos].address);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_pos],
-                                        backend_context->label_table->label_array[end_label_pos].address);
-
-                break;
-            }
-
-            case kLess:
-            {
-                ASM_OPERATOR(cur_node->right);
-
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                ASM_OPERATOR(cur_node->left);
-
-                CMP_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                int32_t logic_op_start_label_id = AddLabelIdentifier(backend_context);
-                int32_t logic_op_end_label_id   = AddLabelIdentifier(backend_context);
-
-                JUMP_IF_LESS(logic_op_start_label_id);
-
-                int32_t jump_on_start_pos = backend_context->instruction_list->tail;
-
-                MOV_IMM_TO_REGISTER(0, kRAX);
-
-                JUMP(logic_op_end_label_id);
-
-                int32_t jump_on_end_pos = backend_context->instruction_list->tail;
-
-                size_t start_label_pos = AddLabel(backend_context->label_table,
-                                                  backend_context->cur_address,
-                                                  kFuncLabelPosPoison,
-                                                  logic_op_start_label_id);
-
-                MOV_IMM_TO_REGISTER(1, kRAX);
-
-                size_t end_label_pos = AddLabel(backend_context->label_table,
-                                                backend_context->cur_address,
-                                                kFuncLabelPosPoison,
-                                                logic_op_end_label_id);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_start_pos],
-                                        backend_context->label_table->label_array[start_label_pos].address);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_pos],
-                                        backend_context->label_table->label_array[end_label_pos].address);
-
-                break;
-            }
-
-            case kLessOrEqual:
-            {
-                ASM_OPERATOR(cur_node->right);
-
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                ASM_OPERATOR(cur_node->left);
-
-                CMP_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                int32_t logic_op_start_label_id = AddLabelIdentifier(backend_context);
-                int32_t logic_op_end_label_id   = AddLabelIdentifier(backend_context);
-
-                JUMP_IF_LESS_OR_EQUAL(logic_op_start_label_id);
-
-                int32_t jump_on_start_pos = backend_context->instruction_list->tail;
-
-                MOV_IMM_TO_REGISTER(0, kRAX);
-
-                JUMP(logic_op_end_label_id);
-
-                int32_t jump_on_end_pos = backend_context->instruction_list->tail;
-
-                size_t start_label_pos = AddLabel(backend_context->label_table,
-                                                  backend_context->cur_address,
-                                                  kFuncLabelPosPoison,
-                                                  logic_op_start_label_id);
-
-                MOV_IMM_TO_REGISTER(1, kRAX);
-
-                size_t end_label_pos = AddLabel(backend_context->label_table,
-                                                backend_context->cur_address,
-                                                kFuncLabelPosPoison,
-                                                logic_op_end_label_id);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_start_pos],
-                                        backend_context->label_table->label_array[start_label_pos].address);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_pos],
-                                        backend_context->label_table->label_array[end_label_pos].address);
-
-                break;
-            }
-
-            case kMoreOrEqual:
-            {
-                ASM_OPERATOR(cur_node->right);
-
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                ASM_OPERATOR(cur_node->left);
-
-                CMP_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                int32_t logic_op_start_label_id = AddLabelIdentifier(backend_context);
-                int32_t logic_op_end_label_id   = AddLabelIdentifier(backend_context);
-
-                JUMP_IF_ABOVE_OR_EQUAL(logic_op_start_label_id);
-
-                int32_t jump_on_start_pos = backend_context->instruction_list->tail;
-
-                MOV_IMM_TO_REGISTER(0, kRAX);
-
-                JUMP(logic_op_end_label_id);
-
-                int32_t jump_on_end_pos = backend_context->instruction_list->tail;
-
-                size_t start_label_pos = AddLabel(backend_context->label_table,
-                                                  backend_context->cur_address,
-                                                  kFuncLabelPosPoison,
-                                                  logic_op_start_label_id);
-
-                MOV_IMM_TO_REGISTER(1, kRAX);
-
-                size_t end_label_pos = AddLabel(backend_context->label_table,
-                                                backend_context->cur_address,
-                                                kFuncLabelPosPoison,
-                                                logic_op_end_label_id);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_start_pos],
-                                        backend_context->label_table->label_array[start_label_pos].address);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_pos],
-                                        backend_context->label_table->label_array[end_label_pos].address);
-
-                break;
-            }
-
-            case kNotEqual:
-            {
-                ASM_OPERATOR(cur_node->right);
-
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                ASM_OPERATOR(cur_node->left);
-
-                CMP_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                int32_t logic_op_start_label_id = AddLabelIdentifier(backend_context);
-                int32_t logic_op_end_label_id   = AddLabelIdentifier(backend_context);
-
-                JUMP_IF_NOT_EQUAL(logic_op_start_label_id);
-
-                int32_t jump_on_start_pos = backend_context->instruction_list->tail;
-
-                MOV_IMM_TO_REGISTER(0, kRAX);
-
-                JUMP(logic_op_end_label_id);
-
-                int32_t jump_on_end_pos = backend_context->instruction_list->tail;
-
-                size_t start_label_pos = AddLabel(backend_context->label_table,
-                                                  backend_context->cur_address,
-                                                  kFuncLabelPosPoison,
-                                                  logic_op_start_label_id);
-
-                MOV_IMM_TO_REGISTER(1, kRAX);
-
-                size_t end_label_pos = AddLabel(backend_context->label_table,
-                                                backend_context->cur_address,
-                                                kFuncLabelPosPoison,
-                                                logic_op_end_label_id);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_start_pos],
-                                        backend_context->label_table->label_array[start_label_pos].address);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_pos],
-                                        backend_context->label_table->label_array[end_label_pos].address);
-
-                break;
-            }
-
-            case kAnd:
-            {
-                ASM_OPERATOR(cur_node->right);
-
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                ASM_OPERATOR(cur_node->left);
-
-                IMUL_ON_REGISTER(kRBX);
-
-                CMP_REGISTER_TO_IMMEDIATE(kRAX, 0);
-
-                int32_t logic_op_start_label_id = AddLabelIdentifier(backend_context);
-                int32_t logic_op_end_label_id   = AddLabelIdentifier(backend_context);
-
-                JUMP_IF_ABOVE(logic_op_start_label_id);
-
-                int32_t jump_on_start_pos = backend_context->instruction_list->tail;
-
-                MOV_IMM_TO_REGISTER(0, kRAX);
-
-                JUMP(logic_op_end_label_id);
-
-                int32_t jump_on_end_pos = backend_context->instruction_list->tail;
-
-                size_t start_label_pos = AddLabel(backend_context->label_table,
-                                                  backend_context->cur_address,
-                                                  kFuncLabelPosPoison,
-                                                  logic_op_start_label_id);
-
-                MOV_IMM_TO_REGISTER(1, kRAX);
-
-                size_t end_label_pos = AddLabel(backend_context->label_table,
-                                                backend_context->cur_address,
-                                                kFuncLabelPosPoison,
-                                                logic_op_end_label_id);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_start_pos],
-                                        backend_context->label_table->label_array[start_label_pos].address);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_pos],
-                                        backend_context->label_table->label_array[end_label_pos].address);
-
-                break;
-            }
-
-            case kOr:
-            {
-                ASM_OPERATOR(cur_node->right);
-
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                ASM_OPERATOR(cur_node->left);
-
-                ADD_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                CMP_REGISTER_TO_IMMEDIATE(kRAX, 0);
-
-                int32_t logic_op_start_label_id = AddLabelIdentifier(backend_context);
-                int32_t logic_op_end_label_id   = AddLabelIdentifier(backend_context);
-
-                JUMP_IF_ABOVE(logic_op_start_label_id);
-
-                int32_t jump_on_start_pos = backend_context->instruction_list->tail;
-
-                MOV_IMM_TO_REGISTER(0, kRAX);
-
-                JUMP(logic_op_end_label_id);
-
-                int32_t jump_on_end_pos = backend_context->instruction_list->tail;
-
-                size_t start_label_pos = AddLabel(backend_context->label_table,
-                                                  backend_context->cur_address,
-                                                  kFuncLabelPosPoison,
-                                                  logic_op_start_label_id);
-
-                MOV_IMM_TO_REGISTER(1, kRAX);
-
-                size_t end_label_pos = AddLabel(backend_context->label_table,
-                                                backend_context->cur_address,
-                                                kFuncLabelPosPoison,
-                                                logic_op_end_label_id);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_start_pos],
-                                        backend_context->label_table->label_array[start_label_pos].address);
-
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_pos],
-                                        backend_context->label_table->label_array[end_label_pos].address);
-                break;
-            }
+            #include "logical_operators_code.gen.h"
 
             default:
             {
@@ -1477,696 +1338,6 @@ static BackendErrs_t AsmFuncExit(BackendContext  *backend_context,
     POP_IN_REGISTER(kRBP);
 
     RET();
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static bool IsImmediateUsing(LogicalOpcode_t logical_op_code)
-{
-    return logical_op_code == kLogicPushImmediate            ||
-           logical_op_code == kLogicMovImmediateToRegister   ||
-           logical_op_code == kLogicAddImmediateToRegister   ||
-           logical_op_code == kLogicSubImmediateFromRegister ||
-           logical_op_code == kLogicCmpRegisterToImmediate   ||
-           logical_op_code == kLogicJumpIfLessOrEqual;
-}
-
-//==============================================================================
-
-static bool IfDisplacementUsing(LogicalOpcode_t logical_op_code)
-{
-    return logical_op_code == kLogicMovRegisterToMemory ||
-           logical_op_code == kLogicMovRmToRegister;
-}
-
-//==============================================================================
-
-static BackendErrs_t SetInstructionSize(Instruction *instruction)
-{
-    CHECK(instruction);
-
-    instruction->instruction_size = 0;
-
-    if (instruction->op_code <= 0xff)
-    {
-        instruction->op_code_size = 1;
-    }
-    else
-    {
-        instruction->op_code_size = 2;
-    }
-
-    if (IfDisplacementUsing((LogicalOpcode_t)instruction->logical_op_code))
-    {
-        instruction->instruction_size += sizeof(instruction->displacement);
-    }
-
-    if (IsImmediateUsing((LogicalOpcode_t)instruction->logical_op_code))
-    {
-        instruction->instruction_size += sizeof(instruction->immediate_arg);
-    }
-
-    if (instruction->mod_rm != 0)
-    {
-        instruction->instruction_size += sizeof(instruction->mod_rm);
-    }
-
-    if (instruction->rex_prefix != 0)
-    {
-        instruction->instruction_size += sizeof(instruction->rex_prefix);
-    }
-
-    if (instruction->op_code != 0)
-    {
-        instruction->instruction_size += instruction->op_code_size;
-    }
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-static BackendErrs_t SetInstruction(Instruction        *instruction,
-                                    BackendContext     *backend_context,
-                                    uint16_t            op_code,
-                                    DisplacementType_t  displacement,
-                                    ImmediateType_t     immediate_arg,
-                                    LogicalOpcode_t     logical_op_code)
-
-{
-    CHECK(instruction);
-
-    instruction->begin_address   = backend_context->cur_address;
-    instruction->op_code         = op_code;
-    instruction->displacement    = displacement;
-    instruction->immediate_arg   = immediate_arg;
-    instruction->logical_op_code = logical_op_code;
-
-    SetInstructionSize(instruction);
-
-    backend_context->cur_address += instruction->instruction_size;
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t SetRexPrefix(Instruction *instruction,
-                                  uint8_t      qword_usage,
-                                  uint8_t      register_extension,
-                                  uint8_t      sib_extension,
-                                  uint8_t      mod_rm_extension)
-{
-    CHECK(instruction);
-
-    instruction->rex_prefix = 0;
-
-    instruction->rex_prefix |= kRexHeader;
-
-    instruction->rex_prefix |= qword_usage;
-    instruction->rex_prefix |= register_extension;
-    instruction->rex_prefix |= sib_extension;
-    instruction->rex_prefix |= mod_rm_extension;
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t SetModRm(Instruction    *instruction,
-                              ModRmCode_t     mode,
-                              RegisterCode_t  source_register,
-                              RegisterCode_t  receiver_register)
-{
-    CHECK(instruction);
-
-    instruction->mod_rm = 0;
-
-    instruction->mod_rm |= mode;
-
-    if (source_register != kNotRegister)
-    {
-        instruction->mod_rm |= source_register << 3;
-    }
-
-    if (receiver_register != kNotRegister)
-    {
-        instruction->mod_rm |= receiver_register;
-    }
-
-    return kBackendSuccess;
-}
-
-#define SET_INSTRUCTION(op_code, displacement, imm_arg, logical_op_code) SetInstruction(&instruction,                 \
-                                                                                        backend_context,              \
-                                                                                        op_code,                      \
-                                                                                        displacement,                 \
-                                                                                        imm_arg,                      \
-                                                                                        logical_op_code)
-
-#define SET_MOD_RM(mode, source_reg, receiver_reg) SetModRm(&instruction,  \
-                                                             mode,         \
-                                                             source_reg,   \
-                                                             receiver_reg)
-
-#define SET_REX_PREFIX(qword_usage, register_extension, sib_extension, mod_rm_extension) SetRexPrefix(&instruction,        \
-                                                                                                       qword_usage,        \
-                                                                                                       register_extension, \
-                                                                                                       sib_extension,      \
-                                                                                                       mod_rm_extension)
-
-//==============================================================================
-
-static RegisterCode_t GetRegisterBase(RegisterCode_t reg)
-{
-    uint32_t reg_code = reg;
-
-    return (RegisterCode_t) (reg_code & (~((~0) << 3)));
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeCall(BackendContext  *backend_context,
-                                LanguageContext *language_context,
-                                size_t           func_pos)
-{
-    Instruction instruction = {0};
-
-    SET_INSTRUCTION(kCallRel32, 0, kJmpPoison, kLogicCall);
-
-    ADD_INSTRUCTION(&instruction);
-
-    AddFuncLabelRequest(backend_context,
-                        backend_context->instruction_list->tail,
-                        func_pos);
-
-    BackendDumpPrintCall(func_pos);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodePushRegister(BackendContext *backend_context,
-                                        RegisterCode_t  reg)
-{
-    Instruction instruction = {0};
-
-    if (IsNewRegister(reg))
-    {
-        SET_REX_PREFIX(kQwordUsing, kRexPrefixNoOptions, kRexPrefixNoOptions, kModRmExtension);
-    }
-
-    SET_INSTRUCTION(kPushR64 + GetRegisterBase(reg), 0, 0, kLogicPushRegister);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeJump(BackendContext  *backend_context,
-                                LogicalOpcode_t  logical_opcode,
-                                Opcode_t         op_code,
-                                int32_t          label_identifier)
-{
-    Instruction instruction = {0};
-
-    SET_INSTRUCTION(op_code, 0, kJmpPoison, logical_opcode);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintJump(&instruction, label_identifier);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeMovRegisterToRegister(BackendContext *backend_context,
-                                                 RegisterCode_t  src_reg,
-                                                 RegisterCode_t  dest_reg)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t reg_extension = kRexPrefixNoOptions;
-    RexPrefixCode_t rm_extension  = kRexPrefixNoOptions;
-
-    if (IsNewRegister(src_reg))
-    {
-        reg_extension = kRegisterExtension;
-    }
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, reg_extension, kRexPrefixNoOptions, rm_extension);
-
-    SET_MOD_RM(kRegister, GetRegisterBase(src_reg), GetRegisterBase(dest_reg));
-
-    SET_INSTRUCTION(kMovR64ToRm64, 0, 0, kLogicMovRegisterToRegister);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeRet(BackendContext *backend_context)
-{
-    Instruction instruction = {0};
-
-    SET_INSTRUCTION(kRet, 0, 0, kLogicRet);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodePopInRegister(BackendContext *backend_context,
-                                         RegisterCode_t  dest_reg)
-{
-    Instruction instruction = {0};
-
-    if (IsNewRegister(dest_reg))
-    {
-        SET_REX_PREFIX(kRexPrefixNoOptions,
-                       kRegisterExtension,
-                       kRexPrefixNoOptions,
-                       kRexPrefixNoOptions);
-    }
-
-    SET_INSTRUCTION(kPopR64 + GetRegisterBase(dest_reg), 0, 0, kLogicPopInRegister);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeMovImmediateToRegister(BackendContext  *backend_context,
-                                                  ImmediateType_t  immediate,
-                                                  RegisterCode_t   dest_reg)
-{
-    Instruction instruction = {0};
-
-    if (IsNewRegister(dest_reg))
-    {
-        SET_REX_PREFIX(kQwordUsing,
-                       kRexPrefixNoOptions,
-                       kRexPrefixNoOptions,
-                       kModRmExtension);
-    }
-    else
-    {
-        SET_REX_PREFIX(kQwordUsing,
-                       kRexPrefixNoOptions,
-                       kRexPrefixNoOptions,
-                       kRexPrefixNoOptions);
-    }
-
-    SET_INSTRUCTION(kMovImmToR64, 0, immediate, kLogicMovImmediateToRegister);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeMovRegisterToRegisterMemory(BackendContext *backend_context,
-                                                       RegisterCode_t  src_reg,
-                                                       RegisterCode_t  dest_reg,
-                                                       DisplacementType_t displacement)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t reg_extension = kRexPrefixNoOptions;
-    RexPrefixCode_t rm_extension  = kRexPrefixNoOptions;
-
-    if (IsNewRegister(src_reg))
-    {
-        reg_extension = kRegisterExtension;
-    }
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, reg_extension, kRexPrefixNoOptions, rm_extension);
-
-    SET_MOD_RM(kRegisterMemory16Displacement,
-               GetRegisterBase(src_reg),
-               GetRegisterBase(dest_reg));
-
-    SET_INSTRUCTION(kMovR64ToRm64, displacement, 0, kLogicMovRegisterToMemory);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeAddImmediateToRegister(BackendContext  *backend_context,
-                                                  ImmediateType_t  immediate,
-                                                  RegisterCode_t   dest_reg)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t rm_extension  = kRexPrefixNoOptions;
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, kRexPrefixNoOptions, kRexPrefixNoOptions, rm_extension);
-
-    SET_MOD_RM(kRegister, kRAX, GetRegisterBase(dest_reg));
-
-    SET_INSTRUCTION(kAddImmToRm64, 0, immediate, kLogicAddImmediateToRegister);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeAddRegisterToRegister(BackendContext *backend_context,
-                                                 RegisterCode_t  src_reg,
-                                                 RegisterCode_t  dest_reg)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t reg_extension = kRexPrefixNoOptions;
-    RexPrefixCode_t rm_extension  = kRexPrefixNoOptions;
-
-    if (IsNewRegister(src_reg))
-    {
-        reg_extension = kRegisterExtension;
-    }
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, reg_extension, kRexPrefixNoOptions, rm_extension);
-
-    SET_MOD_RM(kRegister, GetRegisterBase(src_reg), GetRegisterBase(dest_reg));
-
-    SET_INSTRUCTION(kAddR64ToRm64, 0, 0, kLogicAddRegisterToRegister);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeMovRegisterMemoryToRegister(BackendContext     *backend_context,
-                                                       RegisterCode_t      src_reg,
-                                                       RegisterCode_t      dest_reg,
-                                                       DisplacementType_t  displacement)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t reg_extension = kRexPrefixNoOptions;
-    RexPrefixCode_t rm_extension  = kRexPrefixNoOptions;
-
-    if (IsNewRegister(src_reg))
-    {
-        reg_extension = kRegisterExtension;
-    }
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, reg_extension, kRexPrefixNoOptions, rm_extension);
-
-    SET_MOD_RM(kRegisterMemory16Displacement, GetRegisterBase(src_reg),
-                                              GetRegisterBase(dest_reg));
-
-    SET_INSTRUCTION(kMovRm64ToR64, displacement, 0, kLogicMovRegisterToMemory);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeSubRegisterFromRegister(BackendContext *backend_context,
-                                                   RegisterCode_t  src_reg,
-                                                   RegisterCode_t  dest_reg)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t reg_extension = kRexPrefixNoOptions;
-    RexPrefixCode_t rm_extension  = kRexPrefixNoOptions;
-
-    if (IsNewRegister(src_reg))
-    {
-        reg_extension = kRegisterExtension;
-    }
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, reg_extension, kRexPrefixNoOptions, rm_extension);
-
-    SET_INSTRUCTION(kSubR64FromRm64, 0, 0, kLogicSubRegisterFromRegister);
-
-    SET_MOD_RM(kRegister, GetRegisterBase(src_reg), GetRegisterBase(dest_reg));
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeSubImmediateFromRegister(BackendContext *backend_context,
-                                                    RegisterCode_t  dest_reg,
-                                                    ImmediateType_t immediate)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t rm_extension  = kRexPrefixNoOptions;
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, kRexPrefixNoOptions, kRexPrefixNoOptions, rm_extension);
-
-    SET_MOD_RM(kRegister, (RegisterCode_t) 0x5, GetRegisterBase(dest_reg));
-
-    SET_INSTRUCTION(kSubImmFromRm64, 0, immediate, kLogicSubImmediateFromRegister);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeXorRegisterWithRegister(BackendContext *backend_context,
-                                                   RegisterCode_t  dest_reg,
-                                                   RegisterCode_t  src_reg)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t reg_extension = kRexPrefixNoOptions;
-    RexPrefixCode_t rm_extension  = kRexPrefixNoOptions;
-
-    if (IsNewRegister(src_reg))
-    {
-        reg_extension = kRegisterExtension;
-    }
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, reg_extension, 0, rm_extension);
-
-    SET_MOD_RM(kRegister, GetRegisterBase(src_reg), GetRegisterBase(dest_reg));
-
-    SET_INSTRUCTION(kXorRm64WithR64, 0, 0, kLogicXorRegisterWithRegister);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeDivRegister(BackendContext *backend_context,
-                                       RegisterCode_t  dest_reg)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t rm_extension = (RexPrefixCode_t) 0;
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, 0, 0, rm_extension);
-
-    SET_MOD_RM(kRegister, (RegisterCode_t) 0x6, GetRegisterBase(dest_reg));
-
-    SET_INSTRUCTION(kDivRm64, 0, 0, kLogicDivRegisterOnRax);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeImulRegister(BackendContext *backend_context,
-                                        RegisterCode_t  dest_reg)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t rm_extension = kRexPrefixNoOptions;
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, 0, 0, rm_extension);
-
-    SET_MOD_RM(kRegister, (RegisterCode_t) 0x4, GetRegisterBase(dest_reg));
-
-    SET_INSTRUCTION(kImulRm64, 0, 0, kLogicImulRegisterOnRax);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeCmpRegisterWithImmediate(BackendContext *backend_context,
-                                                    RegisterCode_t  dest_reg,
-                                                    ImmediateType_t immediate)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t rm_extension = kRexPrefixNoOptions;
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, 0, 0, rm_extension);
-
-    SET_MOD_RM(kRegister, (RegisterCode_t) 0x7, GetRegisterBase(dest_reg));
-
-    SET_INSTRUCTION(kCmpRm64WithImm32, 0, immediate, kLogicCmpRegisterToImmediate);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t EncodeCmpRegisterWithRegister(BackendContext *backend_context,
-                                                   RegisterCode_t  dest_reg,
-                                                   RegisterCode_t  src_reg)
-{
-    Instruction instruction = {0};
-
-    RexPrefixCode_t reg_extension = kRexPrefixNoOptions;
-    RexPrefixCode_t rm_extension  = kRexPrefixNoOptions;
-
-    if (IsNewRegister(src_reg))
-    {
-        reg_extension = kRegisterExtension;
-    }
-
-    if (IsNewRegister(dest_reg))
-    {
-        rm_extension = kModRmExtension;
-    }
-
-    SET_REX_PREFIX(kQwordUsing, reg_extension, 0, rm_extension);
-
-    SET_MOD_RM(kRegister, GetRegisterBase(src_reg), GetRegisterBase(dest_reg));
-
-    SET_INSTRUCTION(kCmpRm64WithR64, 0, 0, kLogicCmpRegisterToRegister);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-static BackendErrs_t EncodeLeave(BackendContext *backend_context)
-{
-    Instruction instruction = {0};
-
-    SET_INSTRUCTION(kLeave, 0, 0, kLogicLeave);
-
-    ADD_INSTRUCTION(&instruction);
-
-    BackendDumpPrintInstruction(backend_context, &instruction);
 
     return kBackendSuccess;
 }

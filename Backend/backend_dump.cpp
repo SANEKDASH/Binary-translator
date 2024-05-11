@@ -4,6 +4,18 @@ static FILE *BackendDumpFile = nullptr;
 
 static uint8_t GetDestRegister(Instruction *instruction);
 static uint8_t GetSrcRegister (Instruction *instruction);
+//==============================================================================
+
+#define DUMP_PRINT(...) fprintf(BackendDumpFile, __VA_ARGS__)
+
+#define SOURCE_REGISTER   kRegisterArray[source_register].name
+#define RECEIVER_REGISTER kRegisterArray[receiver_register].name
+
+#define IMMEDIATE instruction->immediate_arg
+
+#define DISPLACEMENT instruction->displacement
+
+//==============================================================================
 
 BackendErrs_t BeginBackendDump()
 {
@@ -19,7 +31,14 @@ BackendErrs_t BeginBackendDump()
         ColorPrintf(kRed, "%s() failed to open file\n");
 
         perror("");
+
+        return kBackendFailedToOpenFile;
     }
+
+    DUMP_PRINT("section .text\n\n"
+               "extern printf\n"
+               "extern scanf\n"
+               "extern main\n\n");
 
     return kBackendSuccess;
 }
@@ -40,16 +59,6 @@ BackendErrs_t EndBackendDump()
     return kBackendSuccess;
 }
 
-//==============================================================================
-
-#define DUMP_PRINT(...) fprintf(BackendDumpFile, __VA_ARGS__)
-
-#define SOURCE_REGISTER   kRegisterArray[source_register].name
-#define RECEIVER_REGISTER kRegisterArray[receiver_register].name
-
-#define IMMEDIATE instruction->immediate_arg
-
-#define DISPLACEMENT instruction->displacement
 
 //==============================================================================
 
@@ -86,25 +95,27 @@ static uint8_t GetDestRegister(Instruction *instruction)
 
 //==============================================================================
 
-BackendErrs_t BackendDumpPrintCall()
+BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
+                                       int32_t           func_pos)
 {
+    if (func_pos == language_context->tables.main_id_pos)
+    {
+        DUMP_PRINT("%s:\n", kAsmMainName);
+    }
+    else
+    {
+        DUMP_PRINT("%s:\n", language_context->identifiers.identifier_array[func_pos].id);
+    }
+
     return kBackendSuccess;
 }
 
 //==============================================================================
 
-BackendErrs_t DumpPrintFuncLabel(int32_t func_pos)
+BackendErrs_t BackendDumpPrintCall(LanguageContext *language_context,
+                                   int32_t          func_pos)
 {
-    DUMP_PRINT("func_%d:\n", func_pos);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-BackendErrs_t BackendDumpPrintCall(int32_t func_pos)
-{
-    DUMP_PRINT("\tcall func_%d\n\n", func_pos);
+    DUMP_PRINT("\tcall %s\n\n", language_context->identifiers.identifier_array[func_pos].id);
 
     return kBackendSuccess;
 }
@@ -262,9 +273,22 @@ BackendErrs_t BackendDumpPrintInstruction(BackendContext  *backend_context,
 
         case kLogicCmpRegisterToRegister:
         {
-            DUMP_PRINT("\t cmp %s, %s\n", RECEIVER_REGISTER,
+            DUMP_PRINT("\tcmp %s, %s\n", RECEIVER_REGISTER,
                                           SOURCE_REGISTER);
+            break;
+        }
 
+        case kLogicRegisterAndRegister:
+        {
+            DUMP_PRINT("\tand %s, %s\n", RECEIVER_REGISTER,
+                                         SOURCE_REGISTER);
+            break;
+        }
+
+        case kLogicRegisterOrRegister:
+        {
+            DUMP_PRINT("\tor %s, %s\n", RECEIVER_REGISTER,
+                                        SOURCE_REGISTER);
             break;
         }
 

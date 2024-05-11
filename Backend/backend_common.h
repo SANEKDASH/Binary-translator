@@ -72,6 +72,9 @@ typedef enum
     kJmpRel32         = 0x0e9,
 
     kCallRel32        = 0xe8,
+
+    kAndR64Rm64       = 0x23,
+    kOrR64Rm64        = 0x0b,
 } Opcode_t;
 
 typedef enum
@@ -117,6 +120,8 @@ typedef enum
     kLogicJumpIfNotEqual,
 
     kLogicJmp,
+    kLogicRegisterAndRegister,
+    kLogicRegisterOrRegister,
 } LogicalOpcode_t;
 
 typedef enum
