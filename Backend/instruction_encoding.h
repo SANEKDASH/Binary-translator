@@ -79,6 +79,25 @@ BackendErrs_t EncodePushRegister(BackendContext *backend_context,
 
 BackendErrs_t EncodeCall(BackendContext  *backend_context,
                          LanguageContext *language_context,
-                         size_t           func_pos);
+                         int32_t          func_pos);
+
+bool IsImmediateUsing(LogicalOpcode_t logical_op_code);
+
+bool IsDisplacementUsing(LogicalOpcode_t logical_op_code);
+
+bool IsJumpInstruction(LogicalOpcode_t logical_op_code);
+
+BackendErrs_t SetInstruction(Instruction        *instruction,
+                             BackendContext     *backend_context,
+                             uint16_t            op_code,
+                             DisplacementType_t  displacement,
+                             ImmediateType_t     immediate_arg,
+                             LogicalOpcode_t     logical_op_code,
+                             size_t              immediate_size,
+                             size_t              displacement_size);
+
+BackendErrs_t SetInstructionSize(Instruction *instruction);
+
+static const int32_t kCallPoison = -1;
 
 #endif

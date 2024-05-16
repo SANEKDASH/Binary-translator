@@ -106,7 +106,16 @@ ListErrs_t GraphDumpList(List       *list,
         if (list->data[i].op_code != kNotOpcode)
         {
             LOG_PRINT("node%lu [style = filled, fillcolor = \"%s\", shape=Mrecord, label = "
-                    "\"<name> NODE_%lu | {begin_address = %lu | instruction_size = %lu | REX = 0x%x | op_code = 0x%x | mod r/m = 0x%x | displacement = %d| imm arg = %d} |{ <next> next : %d | <prev> prev : %d}\"]\n",
+                    "\"<name> NODE_%lu | {begin_address = %lu "
+                                      "| instruction_size = %lu"
+                                      "| REX = 0x%x | op_code = 0x%x "
+                                      "| mod r/m = 0x%x "
+                                      "| displacement = %d"
+                                      "| imm arg = %d"
+                                      "| op_code size = %lu"
+                                      "| immediate_size = %lu"
+                                      "| displacement_size = %lu}"
+                                      "|{ <next> next : %d | <prev> prev : %d}\"]\n",
                     i,
                     (list->prev[i] == -1) ? "pink" : "lightblue",
                     i,
@@ -117,6 +126,9 @@ ListErrs_t GraphDumpList(List       *list,
                     list->data[i].mod_rm,
                     list->data[i].displacement,
                     list->data[i].immediate_arg,
+                    list->data[i].op_code_size,
+                    list->data[i].immediate_size,
+                    list->data[i].displacement_size,
                     list->next[i],
                     list->prev[i]);
         }

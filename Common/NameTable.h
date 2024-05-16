@@ -108,6 +108,12 @@ static const KeyWord NameTable[]=
     "иди_нахуй"             ,kAbort,            strlen("иди_нахуй")
 };
 
+static const size_t kPrintPos = 30;
+static const size_t kScanPos  = 31;
+static const size_t kCosPos   = 5;
+static const size_t kSinPos   = 4;
+static const size_t kSqrtPos  = 8;
+
 static const size_t EndOfLinePos = 28;
 
 static const size_t kKeyWordCount = sizeof(NameTable) / sizeof(KeyWord);

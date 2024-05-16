@@ -269,7 +269,6 @@ static TreeNode *GetExternalDecl(Identifiers  *identifiers,
     {
         return nullptr;
     }
-    printf("HUY\n");
 
     if(cur_unit->left->type == kFuncDef)
     {

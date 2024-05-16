@@ -1,11 +1,12 @@
 #include <stdio.h>
 
 #include "backend.h"
-
 #include "backend_common.h"
 #include "backend_dump.h"
 
 #include "instruction_encoding.h"
+#include "elf_ctor.h"
+
 
 static const char *id_table_file_name = "id_table.txt";
 
@@ -40,13 +41,6 @@ static BackendErrs_t AsmFuncExit            (BackendContext  *backend_context,
                                              LanguageContext *language_context,
                                              TreeNode        *cur_node);
 
-static BackendErrs_t SetInstruction(Instruction        *instruction,
-                                    BackendContext     *backend_context,
-                                    uint16_t            op_code,
-                                    DisplacementType_t  displacement,
-                                    ImmediateType_t     immediate_arg,
-                                    LogicalOpcode_t     logical_op_code);
-
 static BackendErrs_t AsmLanguageInstructions(BackendContext  *backend_context,
                                              LanguageContext *language_context,
                                              TreeNode        *cur_node,
@@ -72,9 +66,6 @@ static BackendErrs_t AsmOperator            (BackendContext  *backend_context,
                                              TreeNode        *cur_node,
                                              TableOfNames    *cur_table);
 
-static BackendErrs_t SetInstructionSize(Instruction *instruction);
-
-
 static BackendErrs_t InitLabelTable(LabelTable *label_table);
 
 
@@ -84,8 +75,8 @@ static BackendErrs_t ReallocLabelTable(LabelTable *label_table,
 
 static BackendErrs_t InitStringTable(StringTable *strings);
 
-static size_t AddLabel(LanguageContext *language_context,
-                       LabelTable      *label_table,
+static size_t AddLabel(BackendContext  *backend_context,
+                       LanguageContext *language_context,
                        size_t           address,
                        int32_t          func_pos,
                        int32_t          identification_number);
@@ -122,8 +113,8 @@ static BackendErrs_t SetCallRelativeAddress(Instruction *call_instruction,
 
 static int32_t AddLabelIdentifier(BackendContext *backend_context);
 
-static BackendErrs_t AddString(StringTable *strings,
-                               char        *str);
+static size_t AddString(StringTable *strings,
+                        const char  *str);
 
 static BackendErrs_t ReallocStringTable(StringTable *strings,
                                         size_t       new_size);
@@ -135,17 +126,124 @@ static BackendErrs_t InitRelocationTable   (RelocationTable *relocation_table);
 static BackendErrs_t DestroyRelocationTable(RelocationTable *relocation_table);
 static BackendErrs_t ReallocRelocationTable(RelocationTable *relocation_table,
                                             size_t           new_size);
-static BackendErrs_t AddRelocation         (RelocationTable *relocation_table,
-                                            Elf64_Rela      *relocation);
+
+static BackendErrs_t AddRelocation(RelocationTable *relocation_table,
+                                   Elf64_Addr       offset,
+                                   Elf64_Xword      info,
+                                   Elf64_Sxword     addend);
+
+static size_t GetStringsCurPos(BackendContext *backend_context);
+
+
+static BackendErrs_t AddLabelString(BackendContext *backend_context,
+                                    int32_t         identification_number);
+
+static int32_t FindString(BackendContext *backend_context,
+                          const char     *str);
+
+static size_t AddSymbol(SymbolTable *sym_table,
+                        Elf64_Word   string_table_name,
+                        unsigned char info,
+                        unsigned char visibility,
+                        Elf64_Section section_index,
+                        Elf64_Addr    value,
+                        Elf64_Xword   symbol_size);
+
+static int32_t FindSymbol(BackendContext *backend_context,
+                          size_t          string_index);
+
+static BackendErrs_t AddFuncCallRelocation(BackendContext *backend_context,
+                                           size_t          operation_code);
+
+//==============================================================================
+
+static BackendErrs_t AddFuncCallRelocation(BackendContext *backend_context,
+                                           size_t          operation_code)
+{
+    int32_t string_index =  FindString(backend_context, NameTable[operation_code].key_word);
+
+    int32_t symbol_index = 0;
+
+    if (string_index < 0)
+    {
+        string_index = AddString(backend_context->strings, NameTable[operation_code].key_word);
+
+        symbol_index = AddSymbol(backend_context->symbol_table,
+                                 string_index,
+                                 ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE),
+                                 STV_DEFAULT,
+                                 SHN_UNDEF,
+                                 0,
+                                 0);
+    }
+    else
+    {
+        symbol_index = FindSymbol(backend_context, string_index);
+
+        if (symbol_index < 0)
+        {
+            ColorPrintf(kRed, "%s() failed to find symbol index\n");
+
+            return kFailedToFindSymbolIndex;
+        }
+    }
+
+    printf("sym index %d\n", symbol_index);
+
+    AddRelocation(backend_context->relocation_table,
+                  backend_context->cur_address - sizeof(RelativeAddrType_t),
+                  ELF64_R_INFO(symbol_index, STT_FUNC),
+                  -0x4);
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+static int32_t FindString(BackendContext *backend_context,
+                          const char     *str)
+{
+    int32_t index = 0;
+
+    for (size_t i = 0; i < backend_context->strings->string_count; i++)
+    {
+        if (strcmp(str, backend_context->strings->string_array[i]) == 0)
+        {
+            return index;
+        }
+
+        index += strlen(backend_context->strings->string_array[i]) + 1;
+    }
+
+    return -1;
+}
+
+//==============================================================================
+
+static int32_t FindSymbol(BackendContext *backend_context,
+                          size_t          string_index)
+{
+    int32_t index = 0;
+
+    for (; index < backend_context->symbol_table->sym_count; index++)
+    {
+        if (backend_context->symbol_table->sym_array[index].st_name == string_index)
+        {
+            return index;
+        }
+    }
+
+    return -1;
+}
 
 //==============================================================================
 
 static BackendErrs_t InitRelocationTable(RelocationTable *relocation_table)
 {
+    relocation_table->capacity = kBaseRelocationTableCapacity;
 
     relocation_table->relocation_array = (Elf64_Rela *) calloc(relocation_table->capacity, sizeof(Elf64_Rela));
 
-    relocation_table->capacity = kBaseRelocationTableCapacity;
     relocation_table->relocation_count = 0;
 
     return kBackendSuccess;
@@ -167,14 +265,18 @@ static BackendErrs_t DestroyRelocationTable(RelocationTable *relocation_table)
 //==============================================================================
 
 static BackendErrs_t AddRelocation(RelocationTable *relocation_table,
-                                   Elf64_Rela      *relocation)
+                                   Elf64_Addr       offset,
+                                   Elf64_Xword      info,
+                                   Elf64_Sxword     addend)
 {
     if (relocation_table->relocation_count >= relocation_table->capacity)
     {
         ReallocRelocationTable(relocation_table, relocation_table->capacity * 2);
     }
 
-    relocation_table->relocation_array[relocation_table->relocation_count] = *relocation;
+    relocation_table->relocation_array[relocation_table->relocation_count].r_offset = offset;
+    relocation_table->relocation_array[relocation_table->relocation_count].r_info   = info;
+    relocation_table->relocation_array[relocation_table->relocation_count].r_addend = addend;
 
     relocation_table->relocation_count += 1;
 
@@ -188,8 +290,8 @@ static BackendErrs_t ReallocRelocationTable(RelocationTable *relocation_table,
 {
     relocation_table->capacity = new_size;
 
-    relocation_table->relocation_array = (Elf64_Rela *) realloc(relocation_table->relocation_array,
-                                                                sizeof(Elf64_Rela) * relocation_table->capacity);
+    relocation_table->relocation_array = (Elf64_Rela *) realloc(relocation_table->relocation_array, sizeof(Elf64_Rela) * relocation_table->capacity);
+
     if (relocation_table->relocation_array == nullptr)
     {
         ColorPrintf(kRed, "%s() failed reallocation\n", __func__);
@@ -215,6 +317,8 @@ static BackendErrs_t InitSymbolTable(SymbolTable *sym_table)
 
     sym_table->sym_count = 0;
 
+    AddSymbol(sym_table, 0, 0, 0, 0, 0, 0);
+
     return kBackendSuccess;
 }
 
@@ -235,13 +339,13 @@ static BackendErrs_t DestroySymbolTable(SymbolTable *sym_table)
 
 //==============================================================================
 
-static BackendErrs_t AddSymbol(SymbolTable *sym_table,
-                               Elf64_Word   string_table_name,
-                               unsigned char info,
-                               unsigned char visibility,
-                               Elf64_Section section_index,
-                               Elf64_Addr    value,
-                               Elf64_Xword   symbol_size)
+static size_t AddSymbol(SymbolTable  *sym_table,
+                        Elf64_Word    string_table_name,
+                        unsigned char info,
+                        unsigned char visibility,
+                        Elf64_Section section_index,
+                        Elf64_Addr    value,
+                        Elf64_Xword   symbol_size)
 {
     if (sym_table->sym_count >= sym_table->capacity)
     {
@@ -257,7 +361,7 @@ static BackendErrs_t AddSymbol(SymbolTable *sym_table,
 
     sym_table->sym_count += 1;
 
-    return kBackendSuccess;
+    return sym_table->sym_count - 1;
 }
 
 //==============================================================================
@@ -267,7 +371,8 @@ static BackendErrs_t ReallocSymbolTable(SymbolTable *sym_table,
 {
     sym_table->capacity = new_size;
 
-    sym_table->sym_array = (Elf64_Sym *) realloc(sym_table->sym_array, sym_table->capacity);
+    sym_table->sym_array = (Elf64_Sym *) realloc(sym_table->sym_array,
+                                                 sym_table->capacity * sizeof(Elf64_Sym));
 
     for (size_t i = sym_table->sym_count; i < sym_table->capacity; i++)
     {
@@ -339,12 +444,14 @@ static BackendErrs_t AddAddressRequest(AddressRequests *address_requests,
 {
     if (address_requests->request_count >= address_requests->capacity)
     {
-        ReallocAddressRequests(address_requests, 2 * address_requests->capacity);
+        ReallocAddressRequests(address_requests, address_requests->capacity * 2);
     }
 
     address_requests->requests[address_requests->request_count].jmp_instruction_list_pos = jmp_instruction_list_pos;
     address_requests->requests[address_requests->request_count].func_pos                 = func_pos;
-    address_requests->requests[address_requests->request_count++].label_identifier       = label_identifier;
+    address_requests->requests[address_requests->request_count].label_identifier         = label_identifier;
+
+    address_requests->request_count++;
 
     return kBackendSuccess;
 }
@@ -386,6 +493,8 @@ static BackendErrs_t RespondAddressRequests(BackendContext *backend_context)
             {
                 SetJumpRelativeAddress(&backend_context->instruction_list->data[backend_context->address_requests->requests[i].jmp_instruction_list_pos],
                                         backend_context->label_table->label_array[j].address);
+
+                printf("respond %d\n", backend_context->instruction_list->data[backend_context->address_requests->requests[i].jmp_instruction_list_pos].immediate_arg);
             }
         }
     }
@@ -425,7 +534,8 @@ static BackendErrs_t ReallocLabelTable(LabelTable *label_table,
 {
     label_table->capacity = new_size;
 
-    label_table->label_array = (Label *) realloc(label_table->label_array, label_table->capacity * sizeof(Label));
+    label_table->label_array = (Label *) realloc(label_table->label_array,
+                                                 label_table->capacity * sizeof(Label));
 
     for (size_t i = label_table->label_count + 1; i < label_table->capacity; i++)
     {
@@ -437,32 +547,78 @@ static BackendErrs_t ReallocLabelTable(LabelTable *label_table,
 
 //==============================================================================
 
-static size_t AddLabel(LanguageContext *language_context,
-                       LabelTable      *label_table,
+static size_t AddLabel(BackendContext  *backend_context,
+                       LanguageContext *language_context,
                        size_t           address,
                        int32_t          func_pos,
                        int32_t          identification_number)
 {
-    if (label_table->label_count >= label_table->capacity)
+    if (backend_context->label_table->label_count >= backend_context->label_table->capacity)
     {
-        ReallocLabelTable(label_table, label_table->capacity * 2);
+        ReallocLabelTable(backend_context->label_table, backend_context->label_table->capacity * 2);
     }
 
-    label_table->label_array[label_table->label_count].address    = address;
-    label_table->label_array[label_table->label_count].func_pos = func_pos;
+    backend_context->label_table->label_array[backend_context->label_table->label_count].address  = address;
+    backend_context->label_table->label_array[backend_context->label_table->label_count].func_pos = func_pos;
 
-    label_table->label_array[label_table->label_count++].identification_number = identification_number;
+    backend_context->label_table->label_array[backend_context->label_table->label_count++].identification_number = identification_number;
+
+    size_t label_string_pos = GetStringsCurPos(backend_context);
+
+    size_t label_bind = STB_LOCAL;
 
     if (identification_number != kCommonLabelIdentifierPoison)
     {
+        AddLabelString(backend_context,
+                       identification_number);
+
         DumpPrintCommonLabel(identification_number);
     }
     else if (func_pos != kFuncLabelPosPoison)
     {
+        if (func_pos == language_context->tables.main_id_pos)
+        {
+            AddString(backend_context->strings, (char *) kAsmMainName);
+
+            label_bind = STB_GLOBAL;
+        }
+        else
+        {
+            AddString(backend_context->strings,
+                      language_context->identifiers.identifier_array[func_pos].id);
+        }
+
         BackendDumpPrintFuncLabel(language_context, func_pos);
     }
 
-    return label_table->label_count - 1;
+
+
+    AddSymbol(backend_context->symbol_table, label_string_pos,
+                                             ELF64_ST_INFO(label_bind, STT_NOTYPE),
+                                             STV_DEFAULT,
+                                             kSectionTextIndex,
+                                             backend_context->cur_address,
+                                             0);
+
+    return backend_context->label_table->label_count - 1;
+}
+
+//==============================================================================
+
+static const size_t kMaxLabelName = 128;
+
+//==============================================================================
+
+static BackendErrs_t AddLabelString(BackendContext *backend_context,
+                                    int32_t         identification_number)
+{
+    static char label_string[kMaxLabelName] = {0};
+
+    sprintf(label_string, "label_%d", identification_number);
+
+    AddString(backend_context->strings, label_string);
+
+    return kBackendSuccess;
 }
 
 //==============================================================================
@@ -521,6 +677,11 @@ BackendErrs_t BackendContextInit(BackendContext *backend_context)
 
     backend_context->relocation_table = (RelocationTable *) calloc(1, sizeof(RelocationTable));
 
+    if (InitRelocationTable(backend_context->relocation_table) != kBackendSuccess)
+    {
+        return kBackendFailedAllocation;
+    }
+
     return kBackendSuccess;
 }
 
@@ -532,35 +693,39 @@ static BackendErrs_t InitStringTable(StringTable *strings)
 
     strings->cur_size = 0;
 
-    strings->byte_array = (char *) calloc(strings->capacity, sizeof(char));
+    strings->string_count = 0;
 
-    if (strings->byte_array == nullptr)
+    strings->string_array = (char **) calloc(strings->capacity, sizeof(char *));
+
+    if (strings->string_array == nullptr)
     {
         return kBackendFailedAllocation;
     }
 
-    strings->cur_size += 1;
+    AddString(strings, "");
 
     return kBackendSuccess;
 }
 
 //==============================================================================
 
-static BackendErrs_t AddString(StringTable *strings,
-                               char        *str)
+static size_t AddString(StringTable *strings,
+                        const char  *str)
 {
+    size_t old_size = strings->cur_size;
+
     size_t size = strlen(str) + 1;
 
-    if (strings->cur_size + size >= strings->capacity)
+    if (strings->string_count >= strings->string_count)
     {
         ReallocStringTable(strings, strings->capacity * 2);
     }
 
-    sprintf(strings->byte_array + strings->cur_size, "%s", str);
+    strings->string_array[strings->string_count++] = strdup(str);
 
     strings->cur_size += size;
 
-    return kBackendSuccess;
+    return old_size;
 }
 
 //==============================================================================
@@ -570,9 +735,9 @@ static BackendErrs_t ReallocStringTable(StringTable *strings,
 {
     strings->capacity = new_size;
 
-    strings->byte_array = (char *) realloc(strings->byte_array, strings->capacity);
+    strings->string_array = (char **) realloc(strings->string_array, strings->capacity * sizeof(char *));
 
-    if (strings->byte_array == nullptr)
+    if (strings->string_array == nullptr)
     {
         return kBackendFailedAllocation;
     }
@@ -584,9 +749,16 @@ static BackendErrs_t ReallocStringTable(StringTable *strings,
 
 static BackendErrs_t DestroyStringTable(StringTable *strings)
 {
-    free(strings->byte_array);
+    for (size_t i = 0; i < strings->string_count; i++)
+    {
+        free(strings->string_array[i]);
 
-    strings->byte_array = nullptr;
+        strings->string_array[i] = nullptr;
+    }
+
+    free(strings->string_array);
+
+    strings->string_array = nullptr;
 
     strings->capacity = 0;
     strings->cur_size = 0;
@@ -639,7 +811,11 @@ BackendErrs_t BackendContextDestroy(BackendContext *backend_context)
 
     backend_context->symbol_table = nullptr;
 
+    DestroyRelocationTable(backend_context->relocation_table);
+
     free(backend_context->relocation_table);
+
+    backend_context->relocation_table = nullptr;
 
     return kBackendSuccess;
 }
@@ -672,8 +848,6 @@ static BackendErrs_t GetVariablePos(TableOfNames *table,
 
     for (size_t i = 0; i < table->name_count; i++)
     {
-        printf("%d\n", i);
-
         if (var_id_pos == table->names[i].pos)
         {
             *ret_id_pos = i;
@@ -685,6 +859,18 @@ static BackendErrs_t GetVariablePos(TableOfNames *table,
     return kCantFindSuchVariable;
 }
 
+static size_t GetStringsCurPos(BackendContext *backend_context)
+{
+    CHECK(backend_context);
+
+    return backend_context->strings->cur_size;
+}
+
+//==============================================================================
+
+static const char *kFileName = "zxczxczxc.dota";
+static const char *kSectionTextName = ".text";
+
 //==============================================================================
 
 BackendErrs_t GetAsmInstructionsOutLanguageContext(BackendContext  *backend_context,
@@ -695,6 +881,19 @@ BackendErrs_t GetAsmInstructionsOutLanguageContext(BackendContext  *backend_cont
 
     TreeNode *root = language_context->syntax_tree.root;
 
+    size_t file_name_string_pos = AddString(backend_context->strings, (char *) kFileName);
+
+    AddSymbol(backend_context->symbol_table, file_name_string_pos,
+                                             ELF64_ST_INFO(STB_LOCAL, STT_FILE),
+                                             STV_DEFAULT,
+                                             SHN_ABS, 0, 0);
+
+    size_t section_text_name_pos = AddString(backend_context->strings, (char *) kSectionTextName);
+
+    AddSymbol(backend_context->symbol_table, section_text_name_pos,
+                                             ELF64_ST_INFO(STB_LOCAL, STT_SECTION),
+                                             STV_DEFAULT,
+                                             kSectionTextIndex, 0, 0);
     if (root == nullptr)
     {
         printf("%s(): null tree\n", __func__);
@@ -725,7 +924,6 @@ static BackendErrs_t AsmExternalDeclarations(BackendContext  *backend_context,
 
     while (cur_node != nullptr)
     {
-
         TreeNode *cur_decl = cur_node->left;
 
         switch (cur_decl->type)
@@ -770,30 +968,26 @@ static BackendErrs_t AsmFuncDeclaration(BackendContext  *backend_context,
     CHECK(language_context);
     CHECK(cur_node);
 
-    int name_table_pos = GetNameTablePos(&language_context->tables, cur_node->data.variable_pos);
+    int name_table_pos = GetNameTablePos(&language_context->tables,
+                                          cur_node->data.variable_pos);
 
     if (name_table_pos < 0)
     {
         return kCantFindNameTable;
     }
 
-    AddLabel(language_context,
-             backend_context->label_table,
+    AddLabel(backend_context,
+             language_context,
              backend_context->cur_address,
              cur_node->data.variable_pos,
              kCommonLabelIdentifierPoison);
 
-    AsmFuncEntry(backend_context,
-                 language_context,
-                 cur_node,
-                 language_context->tables.name_tables[name_table_pos]);
-
     TreeNode *params_node = cur_node->right;
 
-    AsmGetFuncParams(backend_context,
-                     language_context,
-                     params_node->left,
-                     language_context->tables.name_tables[name_table_pos]);
+    AsmFuncEntry(backend_context,
+                 language_context,
+                 params_node->left,
+                 language_context->tables.name_tables[name_table_pos]);
 
     AsmLanguageInstructions(backend_context,
                             language_context,
@@ -814,7 +1008,7 @@ static BackendErrs_t AsmFuncDeclaration(BackendContext  *backend_context,
 #define MOV_IMM_TO_REGISTER(imm, reg)                                      EncodeMovImmediateToRegister(backend_context, imm, reg)
 #define MOV_REGISTER_TO_REGISTER(source_reg, dest_reg)                     EncodeMovRegisterToRegister(backend_context, source_reg, dest_reg)
 #define MOV_REGISTER_TO_REG_MEMORY(source_reg, receiver_reg, displacement) EncodeMovRegisterToRegisterMemory(backend_context, source_reg, receiver_reg, displacement)
-#define MOV_REG_MEMORY_TO_REGISTER(source_reg, displacement, receiver_reg) EncodeMovRegisterMemoryToRegister(backend_context, source_reg, receiver_reg, displacement)
+#define MOV_REG_MEMORY_TO_REGISTER(source_reg, displacement, receiver_reg) EncodeMovRegisterMemoryToRegister(backend_context, receiver_reg, source_reg, displacement)
 
 #define ADD_IMM_TO_REGISTER(imm, receiver_reg)                             EncodeAddImmediateToRegister(backend_context, imm, receiver_reg)
 #define ADD_REGISTER_TO_REGISTER(source_reg, receiver_reg)                 EncodeAddRegisterToRegister(backend_context, source_reg, receiver_reg)
@@ -883,7 +1077,6 @@ static BackendErrs_t AsmLanguageInstructions(BackendContext  *backend_context,
                                 language_context,
                                 instruction_node,
                                 cur_table);
-
                 break;
             }
 
@@ -966,7 +1159,6 @@ static int32_t AddLabelIdentifier(BackendContext *backend_context)
 
 //==============================================================================
 
-// strange naming?
 static BackendErrs_t AsmOperator(BackendContext  *backend_context,
                                  LanguageContext *language_context,
                                  TreeNode        *cur_node,
@@ -1099,6 +1291,7 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
 
             case kIf:
             {
+
                 ASM_OPERATOR(cur_node->left);
 
                 CMP_REGISTER_TO_IMMEDIATE(kRAX, 0);
@@ -1115,11 +1308,84 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
 
                 size_t label_pos = 0;
 
-                AddLabel(language_context,
-                         backend_context->label_table,
+                AddLabel(backend_context,
+                         language_context,
                          backend_context->cur_address,
                          kFuncLabelPosPoison,
                          cur_identify);
+                break;
+            }
+
+            case kScan:
+            {
+                CALL(kCallPoison);
+
+                AddFuncCallRelocation(backend_context, kScanPos);
+
+                BackendDumpPrintString("\tcall скажи_мне\n");
+
+                break;
+            }
+
+            case kPrint:
+            {
+                AsmOperator(backend_context, language_context, cur_node->right, cur_table);
+
+                MOV_REGISTER_TO_REGISTER(kRAX, kRDI);
+
+                CALL(kCallPoison);
+
+                AddFuncCallRelocation(backend_context, kPrintPos);
+
+                BackendDumpPrintString("\tcall пишу_твоей_матери\n");
+
+                break;
+            }
+
+            case kCos:
+            {
+                AsmOperator(backend_context, language_context, cur_node->right, cur_table);
+
+                MOV_REGISTER_TO_REGISTER(kRAX, kRDI);
+
+                CALL(kCallPoison);
+
+                AddFuncCallRelocation(backend_context, kCosPos);
+
+                BackendDumpPrintString("\tcall пишу_твоей_матери\n");
+
+                break;
+            }
+
+            case kSin:
+            {
+
+                AsmOperator(backend_context, language_context, cur_node->right, cur_table);
+
+                MOV_REGISTER_TO_REGISTER(kRAX, kRDI);
+
+                CALL(kCallPoison);
+
+                AddFuncCallRelocation(backend_context, kSinPos);
+
+                BackendDumpPrintString("\tcall пишу_твоей_матери\n");
+
+                break;
+            }
+
+            case kSqrt:
+            {
+
+                AsmOperator(backend_context, language_context, cur_node->right, cur_table);
+
+                MOV_REGISTER_TO_REGISTER(kRAX, kRDI);
+
+                CALL(kCallPoison);
+
+                AddFuncCallRelocation(backend_context, kSqrtPos);
+
+                BackendDumpPrintString("\tcall трент_ультует\n");
+
                 break;
             }
 
@@ -1147,15 +1413,15 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
                                                                                                                 \
                 int32_t jump_on_end_pos = backend_context->instruction_list->tail;                              \
                                                                                                                 \
-                size_t start_label_pos = AddLabel(language_context,                                             \
-                                                  backend_context->label_table,                                 \
+                size_t start_label_pos = AddLabel(backend_context,                                              \
+                                                  language_context,                                             \
                                                   backend_context->cur_address,                                 \
                                                   kFuncLabelPosPoison,                                          \
                                                   logic_op_start_label_id);                                     \
                 MOV_IMM_TO_REGISTER(1, kRAX);                                                                   \
                                                                                                                 \
-                size_t end_label_pos = AddLabel(language_context,                                               \
-                                                backend_context->label_table,                                   \
+                size_t end_label_pos = AddLabel(backend_context,                                                \
+                                                language_context,                                               \
                                                 backend_context->cur_address,                                   \
                                                 kFuncLabelPosPoison,                                            \
                                                 logic_op_end_label_id);                                         \
@@ -1235,9 +1501,9 @@ static BackendErrs_t PassFuncArgs(BackendContext  *backend_context,
 static BackendErrs_t SetJumpRelativeAddress(Instruction *jump_instruction,
                                             int32_t      label_pos)
 {
-    jump_instruction->immediate_arg = label_pos - jump_instruction->begin_address
-                                                - jump_instruction->instruction_size;
-
+    jump_instruction->immediate_arg = label_pos -
+                                      jump_instruction->begin_address -
+                                      jump_instruction->instruction_size;
     return kBackendSuccess;
 }
 
@@ -1260,34 +1526,33 @@ static BackendErrs_t AsmGetFuncParams(BackendContext  *backend_context,
     CHECK(cur_node);
     CHECK(cur_table);
 
+
     TreeNode *cur_arg_node = cur_node;
 
     size_t args_count = 0;
 
-    while (cur_arg_node->right != nullptr)
+    while (cur_arg_node != nullptr)
     {
+        printf("ptr %p\n", cur_arg_node);
+
         if (cur_arg_node->left != nullptr)
         {
-            cur_arg_node = cur_arg_node->right;
-
             args_count++;
         }
+
+        cur_arg_node = cur_arg_node->right;
     }
 
-    if (args_count = 0 && cur_node->left == nullptr)
+    if (args_count == 0 && cur_node->left == nullptr)
     {
         return kBackendNullArgs;
     }
 
     size_t passed_args_count = 0;
 
-    for (; passed_args_count < args_count &&
-           passed_args_count < kArgPassingRegisterCount;
-           passed_args_count++)
+    for (; (passed_args_count < args_count) && (passed_args_count < kArgPassingRegisterCount); passed_args_count++)
     {
-        MOV_REGISTER_TO_REG_MEMORY(ArgPassingRegisters[passed_args_count],
-                                   kRBP,
-                                   (passed_args_count + 1) * (-8));
+        MOV_REGISTER_TO_REG_MEMORY(ArgPassingRegisters[passed_args_count], kRBP, (passed_args_count + 1) * (-8));
     }
 
     if (passed_args_count < kArgPassingRegisterCount)
@@ -1320,6 +1585,11 @@ static BackendErrs_t AsmFuncEntry(BackendContext  *backend_context,
 
     MOV_REGISTER_TO_REGISTER(kRSP, kRBP);
 
+    AsmGetFuncParams(backend_context,
+                     language_context,
+                     cur_node,
+                     cur_table);
+
     SUB_IMMEDIATE_FROM_REGISTER((cur_table->name_count + 1) * 8, kRSP);
 
     return kBackendSuccess;
@@ -1341,3 +1611,5 @@ static BackendErrs_t AsmFuncExit(BackendContext  *backend_context,
 
     return kBackendSuccess;
 }
+
+//==============================================================================

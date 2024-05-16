@@ -10,15 +10,11 @@
 
 static RegisterCode_t GetRegisterBase(RegisterCode_t reg);
 
-static bool IsImmediateUsing(LogicalOpcode_t logical_op_code);
-
-static bool IfDisplacementUsing(LogicalOpcode_t logical_op_code);
-
 static bool IsNewRegister(RegisterCode_t reg);
 
 //==============================================================================
 
-static bool IsImmediateUsing(LogicalOpcode_t logical_op_code)
+bool IsImmediateUsing(LogicalOpcode_t logical_op_code)
 {
     return logical_op_code == kLogicPushImmediate            ||
            logical_op_code == kLogicMovImmediateToRegister   ||
@@ -30,10 +26,24 @@ static bool IsImmediateUsing(LogicalOpcode_t logical_op_code)
 
 //==============================================================================
 
-static bool IfDisplacementUsing(LogicalOpcode_t logical_op_code)
+bool IsDisplacementUsing(LogicalOpcode_t logical_op_code)
 {
     return logical_op_code == kLogicMovRegisterToMemory ||
            logical_op_code == kLogicMovRmToRegister;
+}
+
+//==============================================================================
+
+bool IsJumpInstruction(LogicalOpcode_t logical_op_code)
+{
+    return logical_op_code == kLogicJumpIfLessOrEqual  ||
+           logical_op_code == kLogicJumpIfLess         ||
+           logical_op_code == kLogicJumpIfAboveOrEqual ||
+           logical_op_code == kLogicJumpIfAbove        ||
+           logical_op_code == kLogicJumpIfEqual        ||
+           logical_op_code == kLogicJumpIfNotEqual     ||
+           logical_op_code == kLogicJmp                ||
+           logical_op_code == kLogicCall;
 }
 
 //==============================================================================
@@ -60,15 +70,9 @@ BackendErrs_t SetInstructionSize(Instruction *instruction)
         instruction->op_code_size = 2;
     }
 
-    if (IfDisplacementUsing((LogicalOpcode_t)instruction->logical_op_code))
-    {
-        instruction->instruction_size += sizeof(instruction->displacement);
-    }
+    instruction->instruction_size += instruction->displacement_size;
 
-    if (IsImmediateUsing((LogicalOpcode_t)instruction->logical_op_code))
-    {
-        instruction->instruction_size += sizeof(instruction->immediate_arg);
-    }
+    instruction->instruction_size += instruction->immediate_size;
 
     if (instruction->mod_rm != 0)
     {
@@ -89,21 +93,25 @@ BackendErrs_t SetInstructionSize(Instruction *instruction)
 }
 
 //==============================================================================
+
 BackendErrs_t SetInstruction(Instruction        *instruction,
                              BackendContext     *backend_context,
                              uint16_t            op_code,
                              DisplacementType_t  displacement,
                              ImmediateType_t     immediate_arg,
-                             LogicalOpcode_t     logical_op_code)
-
+                             LogicalOpcode_t     logical_op_code,
+                             size_t              immediate_size,
+                             size_t              displacement_size)
 {
     CHECK(instruction);
 
-    instruction->begin_address   = backend_context->cur_address;
-    instruction->op_code         = op_code;
-    instruction->displacement    = displacement;
-    instruction->immediate_arg   = immediate_arg;
-    instruction->logical_op_code = logical_op_code;
+    instruction->begin_address     = backend_context->cur_address;
+    instruction->op_code           = op_code;
+    instruction->displacement      = displacement;
+    instruction->immediate_arg     = immediate_arg;
+    instruction->logical_op_code   = logical_op_code;
+    instruction->immediate_size    = immediate_size;
+    instruction->displacement_size = displacement_size;
 
     SetInstructionSize(instruction);
 
@@ -166,12 +174,14 @@ BackendErrs_t SetModRm(Instruction    *instruction,
                                             backend_context->instruction_list->tail, \
                                             instr);
 
-#define SET_INSTRUCTION(op_code, displacement, imm_arg, logical_op_code) SetInstruction(&instruction,                 \
-                                                                                        backend_context,              \
-                                                                                        op_code,                      \
-                                                                                        displacement,                 \
-                                                                                        imm_arg,                      \
-                                                                                        logical_op_code)
+#define SET_INSTRUCTION(op_code, displacement, imm_arg, logical_op_code, immediate_size, displacement_size) SetInstruction(&instruction,                  \
+                                                                                                                            backend_context,              \
+                                                                                                                            op_code,                      \
+                                                                                                                            displacement,                 \
+                                                                                                                            imm_arg,                      \
+                                                                                                                            logical_op_code,              \
+                                                                                                                            immediate_size,               \
+                                                                                                                            displacement_size)            \
 
 #define SET_MOD_RM(mode, source_reg, receiver_reg) SetModRm(&instruction,  \
                                                              mode,         \
@@ -197,19 +207,22 @@ RegisterCode_t GetRegisterBase(RegisterCode_t reg)
 
 BackendErrs_t EncodeCall(BackendContext  *backend_context,
                          LanguageContext *language_context,
-                         size_t           func_pos)
+                         int32_t          func_pos)
 {
     Instruction instruction = {0};
 
-    SET_INSTRUCTION(kCallRel32, 0, kJmpPoison, kLogicCall);
+    SET_INSTRUCTION(kCallRel32, 0, kJmpPoison, kLogicCall, sizeof(RelativeAddrType_t), 0);
 
     ADD_INSTRUCTION(&instruction);
 
-    AddFuncLabelRequest(backend_context,
-                        backend_context->instruction_list->tail,
-                        func_pos);
+    if (func_pos != kCallPoison)
+    {
+        AddFuncLabelRequest(backend_context,
+                            backend_context->instruction_list->tail,
+                            func_pos);
 
-    BackendDumpPrintCall(language_context, func_pos);
+        BackendDumpPrintCall(language_context, func_pos);
+    }
 
     return kBackendSuccess;
 }
@@ -226,7 +239,7 @@ BackendErrs_t EncodePushRegister(BackendContext *backend_context,
         SET_REX_PREFIX(kQwordUsing, kRexPrefixNoOptions, kRexPrefixNoOptions, kModRmExtension);
     }
 
-    SET_INSTRUCTION(kPushR64 + GetRegisterBase(reg), 0, 0, kLogicPushRegister);
+    SET_INSTRUCTION(kPushR64 + GetRegisterBase(reg), 0, 0, kLogicPushRegister, 0, 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -244,7 +257,7 @@ BackendErrs_t EncodeJump(BackendContext  *backend_context,
 {
     Instruction instruction = {0};
 
-    SET_INSTRUCTION(op_code, 0, kJmpPoison, logical_opcode);
+    SET_INSTRUCTION(op_code, 0, kJmpPoison, logical_opcode, sizeof(RelativeAddrType_t), 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -278,7 +291,7 @@ BackendErrs_t EncodeMovRegisterToRegister(BackendContext *backend_context,
 
     SET_MOD_RM(kRegister, GetRegisterBase(src_reg), GetRegisterBase(dest_reg));
 
-    SET_INSTRUCTION(kMovR64ToRm64, 0, 0, kLogicMovRegisterToRegister);
+    SET_INSTRUCTION(kMovR64ToRm64, 0, 0, kLogicMovRegisterToRegister, 0, 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -293,7 +306,7 @@ BackendErrs_t EncodeRet(BackendContext *backend_context)
 {
     Instruction instruction = {0};
 
-    SET_INSTRUCTION(kRet, 0, 0, kLogicRet);
+    SET_INSTRUCTION(kRet, 0, 0, kLogicRet, 0, 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -317,7 +330,7 @@ BackendErrs_t EncodePopInRegister(BackendContext *backend_context,
                        kRexPrefixNoOptions);
     }
 
-    SET_INSTRUCTION(kPopR64 + GetRegisterBase(dest_reg), 0, 0, kLogicPopInRegister);
+    SET_INSTRUCTION(kPopR64 + GetRegisterBase(dest_reg), 0, 0, kLogicPopInRegister, 0, 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -349,7 +362,7 @@ BackendErrs_t EncodeMovImmediateToRegister(BackendContext  *backend_context,
                        kRexPrefixNoOptions);
     }
 
-    SET_INSTRUCTION(kMovImmToR64, 0, immediate, kLogicMovImmediateToRegister);
+    SET_INSTRUCTION(kMovImmToR64, 0, immediate, kLogicMovImmediateToRegister, sizeof(ImmediateType_t), 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -382,11 +395,11 @@ BackendErrs_t EncodeMovRegisterToRegisterMemory(BackendContext *backend_context,
 
     SET_REX_PREFIX(kQwordUsing, reg_extension, kRexPrefixNoOptions, rm_extension);
 
-    SET_MOD_RM(kRegisterMemory16Displacement,
+    SET_MOD_RM(kRegisterMemory32Displacement,
                GetRegisterBase(src_reg),
                GetRegisterBase(dest_reg));
 
-    SET_INSTRUCTION(kMovR64ToRm64, displacement, 0, kLogicMovRegisterToMemory);
+    SET_INSTRUCTION(kMovR64ToRm64, displacement, 0, kLogicMovRegisterToMemory, 0, sizeof(DisplacementType_t));
 
     ADD_INSTRUCTION(&instruction);
 
@@ -414,7 +427,7 @@ BackendErrs_t EncodeAddImmediateToRegister(BackendContext  *backend_context,
 
     SET_MOD_RM(kRegister, kRAX, GetRegisterBase(dest_reg));
 
-    SET_INSTRUCTION(kAddImmToRm64, 0, immediate, kLogicAddImmediateToRegister);
+    SET_INSTRUCTION(kAddImmToRm64, 0, immediate, kLogicAddImmediateToRegister, sizeof(ImmediateType_t), 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -448,7 +461,7 @@ BackendErrs_t EncodeAddRegisterToRegister(BackendContext *backend_context,
 
     SET_MOD_RM(kRegister, GetRegisterBase(src_reg), GetRegisterBase(dest_reg));
 
-    SET_INSTRUCTION(kAddR64ToRm64, 0, 0, kLogicAddRegisterToRegister);
+    SET_INSTRUCTION(kAddR64ToRm64, 0, 0, kLogicAddRegisterToRegister, 0, 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -481,10 +494,10 @@ BackendErrs_t EncodeMovRegisterMemoryToRegister(BackendContext     *backend_cont
 
     SET_REX_PREFIX(kQwordUsing, reg_extension, kRexPrefixNoOptions, rm_extension);
 
-    SET_MOD_RM(kRegisterMemory16Displacement, GetRegisterBase(src_reg),
+    SET_MOD_RM(kRegisterMemory32Displacement, GetRegisterBase(src_reg),
                                               GetRegisterBase(dest_reg));
 
-    SET_INSTRUCTION(kMovRm64ToR64, displacement, 0, kLogicMovRegisterToMemory);
+    SET_INSTRUCTION(kMovRm64ToR64, displacement, 0, kLogicMovRegisterToMemory, 0, sizeof(DisplacementType_t));
 
     ADD_INSTRUCTION(&instruction);
 
@@ -516,7 +529,7 @@ BackendErrs_t EncodeSubRegisterFromRegister(BackendContext *backend_context,
 
     SET_REX_PREFIX(kQwordUsing, reg_extension, kRexPrefixNoOptions, rm_extension);
 
-    SET_INSTRUCTION(kSubR64FromRm64, 0, 0, kLogicSubRegisterFromRegister);
+    SET_INSTRUCTION(kSubR64FromRm64, 0, 0, kLogicSubRegisterFromRegister, 0, 0);
 
     SET_MOD_RM(kRegister, GetRegisterBase(src_reg), GetRegisterBase(dest_reg));
 
@@ -546,7 +559,7 @@ BackendErrs_t EncodeSubImmediateFromRegister(BackendContext *backend_context,
 
     SET_MOD_RM(kRegister, (RegisterCode_t) 0x5, GetRegisterBase(dest_reg));
 
-    SET_INSTRUCTION(kSubImmFromRm64, 0, immediate, kLogicSubImmediateFromRegister);
+    SET_INSTRUCTION(kSubImm32FromRm64, 0, immediate, kLogicSubImmediateFromRegister, sizeof(int32_t), 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -580,7 +593,7 @@ BackendErrs_t EncodeRegisterAndRegister(BackendContext *backend_context,
 
     SET_MOD_RM(kRegister, GetRegisterBase(dest_reg), GetRegisterBase(src_reg));
 
-    SET_INSTRUCTION(kAndR64Rm64, 0, 0, kLogicRegisterAndRegister);
+    SET_INSTRUCTION(kAndR64Rm64, 0, 0, kLogicRegisterAndRegister, 0, 0);
 
     BackendDumpPrintInstruction(backend_context, &instruction);
 
@@ -612,7 +625,7 @@ BackendErrs_t EncodeRegisterOrRegister(BackendContext *backend_context,
 
     SET_MOD_RM(kRegister, GetRegisterBase(dest_reg), GetRegisterBase(src_reg));
 
-    SET_INSTRUCTION(kOrR64Rm64, 0, 0, kLogicRegisterAndRegister);
+    SET_INSTRUCTION(kOrR64Rm64, 0, 0, kLogicRegisterAndRegister, 0, 0);
 
     BackendDumpPrintInstruction(backend_context, &instruction);
 
@@ -644,7 +657,7 @@ BackendErrs_t EncodeXorRegisterWithRegister(BackendContext *backend_context,
 
     SET_MOD_RM(kRegister, GetRegisterBase(src_reg), GetRegisterBase(dest_reg));
 
-    SET_INSTRUCTION(kXorRm64WithR64, 0, 0, kLogicXorRegisterWithRegister);
+    SET_INSTRUCTION(kXorRm64WithR64, 0, 0, kLogicXorRegisterWithRegister, 0, 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -671,7 +684,7 @@ BackendErrs_t EncodeDivRegister(BackendContext *backend_context,
 
     SET_MOD_RM(kRegister, (RegisterCode_t) 0x6, GetRegisterBase(dest_reg));
 
-    SET_INSTRUCTION(kDivRm64, 0, 0, kLogicDivRegisterOnRax);
+    SET_INSTRUCTION(kDivRm64, 0, 0, kLogicDivRegisterOnRax, 0, 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -698,7 +711,7 @@ BackendErrs_t EncodeImulRegister(BackendContext *backend_context,
 
     SET_MOD_RM(kRegister, (RegisterCode_t) 0x4, GetRegisterBase(dest_reg));
 
-    SET_INSTRUCTION(kImulRm64, 0, 0, kLogicImulRegisterOnRax);
+    SET_INSTRUCTION(kImulRm64, 0, 0, kLogicImulRegisterOnRax, 0, 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -726,7 +739,7 @@ BackendErrs_t EncodeCmpRegisterWithImmediate(BackendContext *backend_context,
 
     SET_MOD_RM(kRegister, (RegisterCode_t) 0x7, GetRegisterBase(dest_reg));
 
-    SET_INSTRUCTION(kCmpRm64WithImm32, 0, immediate, kLogicCmpRegisterToImmediate);
+    SET_INSTRUCTION(kCmpRm64WithImm32, 0, immediate, kLogicCmpRegisterToImmediate, sizeof(int32_t), 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -760,7 +773,7 @@ BackendErrs_t EncodeCmpRegisterWithRegister(BackendContext *backend_context,
 
     SET_MOD_RM(kRegister, GetRegisterBase(src_reg), GetRegisterBase(dest_reg));
 
-    SET_INSTRUCTION(kCmpRm64WithR64, 0, 0, kLogicCmpRegisterToRegister);
+    SET_INSTRUCTION(kCmpRm64WithR64, 0, 0, kLogicCmpRegisterToRegister, 0, 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -775,7 +788,7 @@ BackendErrs_t EncodeLeave(BackendContext *backend_context)
 {
     Instruction instruction = {0};
 
-    SET_INSTRUCTION(kLeave, 0, 0, kLogicLeave);
+    SET_INSTRUCTION(kLeave, 0, 0, kLogicLeave, 0, 0);
 
     ADD_INSTRUCTION(&instruction);
 

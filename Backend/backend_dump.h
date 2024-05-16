@@ -27,6 +27,8 @@ BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
 
 BackendErrs_t EndBackendDump();
 
+BackendErrs_t BackendDumpPrintString(const char *str);
+
 struct Register
 {
     const char *name;

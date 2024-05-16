@@ -35,6 +35,7 @@ typedef enum
     kBackendDestroyAddressRequestsError,
     kBackendNullArgs,
     kBackendFailedToOpenFile,
+    kFailedToFindSymbolIndex,
 } BackendErrs_t;
 
 static const size_t kBaseRelocationTableCapacity = 16;
@@ -59,15 +60,17 @@ struct SymbolTable
     size_t     capacity;
 };
 
-static const size_t kBaseStringTableCapacity = 256;
+static const size_t kBaseStringTableCapacity = 16;
 
 struct StringTable
 {
-    char   *byte_array;
+    char    **string_array;
 
-    size_t  capacity;
+    size_t    capacity;
 
-    size_t  cur_size;
+    size_t    string_count;
+
+    size_t    cur_size;
 };
 
 static const int32_t kFuncLabelPosPoison          = -1;
@@ -148,4 +151,5 @@ BackendErrs_t AddFuncLabelRequest(BackendContext *backend_context,
 BackendErrs_t AddCommonLabelRequest(BackendContext *backend_context,
                                     size_t          jump_instruction_list_pos,
                                     int32_t         identification_number);
+
 #endif

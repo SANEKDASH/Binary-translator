@@ -36,8 +36,8 @@ BackendErrs_t BeginBackendDump()
     }
 
     DUMP_PRINT("section .text\n\n"
-               "extern printf\n"
-               "extern scanf\n"
+               "extern пишу_твоей_матери\n"
+               "extern скажи_мне\n"
                "extern main\n\n");
 
     return kBackendSuccess;
@@ -96,7 +96,7 @@ static uint8_t GetDestRegister(Instruction *instruction)
 //==============================================================================
 
 BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
-                                       int32_t           func_pos)
+                                        int32_t           func_pos)
 {
     if (func_pos == language_context->tables.main_id_pos)
     {
@@ -106,6 +106,15 @@ BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
     {
         DUMP_PRINT("%s:\n", language_context->identifiers.identifier_array[func_pos].id);
     }
+
+    return kBackendSuccess;
+}
+
+//==============================================================================
+
+BackendErrs_t BackendDumpPrintString(const char *str)
+{
+    DUMP_PRINT("%s", str);
 
     return kBackendSuccess;
 }
@@ -218,6 +227,13 @@ BackendErrs_t BackendDumpPrintInstruction(BackendContext  *backend_context,
         {
             DUMP_PRINT("\tadd %s, %d\n", RECEIVER_REGISTER,
                                          IMMEDIATE);
+            break;
+        }
+
+        case kLogicAddRegisterToRegister:
+        {
+            DUMP_PRINT("\tadd %s, %s", RECEIVER_REGISTER,
+                                       SOURCE_REGISTER);
             break;
         }
 

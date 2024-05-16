@@ -1,2 +1,1 @@
-# FilyakLanguage
-# Binary-translator
+# Бинарный транслятор

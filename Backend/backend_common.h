@@ -5,7 +5,9 @@
 
 typedef int64_t  ImmediateType_t;
 
-typedef uint32_t DisplacementType_t;
+typedef int32_t DisplacementType_t;
+
+typedef int32_t RelativeAddrType_t;
 
 static const ImmediateType_t kJmpPoison = 0x10101010;
 typedef enum
@@ -46,11 +48,11 @@ typedef enum
     kRet              = 0xc3,
     kLeave            = 0xc9,
 
-    kAddImmToRm64     = 0x81,
     kAddR64ToRm64     = 0x01,
+    kAddImmToRm64     = 0x81,
 
     kSubR64FromRm64   = 0x29,
-    kSubImmFromRm64   = 0x81,
+    kSubImm32FromRm64   = 0x81,
 
     kXorRm64WithR64   = 0x31,
 
@@ -60,16 +62,16 @@ typedef enum
     kCmpRm64WithImm32 = 0x81,
     kCmpRm64WithR64   = 0x39,
 
-    kJbeRel32         = 0x0f86,
-    kJbRel32          = 0x0f82,
+    kJbeRel32         = 0x860f,
+    kJbRel32          = 0x820f,
 
-    kJaeRel32         = 0x0f83,
-    kJaRel32          = 0x0f87,
+    kJaeRel32         = 0x830f,
+    kJaRel32          = 0x870f,
 
-    kJeRel32          = 0x0f84,
-    kJneRel32         = 0x0f85,
+    kJeRel32          = 0x840f,
+    kJneRel32         = 0x850f,
 
-    kJmpRel32         = 0x0e9,
+    kJmpRel32         = 0xe9,
 
     kCallRel32        = 0xe8,
 
@@ -128,7 +130,7 @@ typedef enum
 {
     kRegisterMemoryMode           = 0x0,
     kRegisterMemory8Displacement  = 0x40,
-    kRegisterMemory16Displacement = 0x80,
+    kRegisterMemory32Displacement = 0x80,
     kRegister                     = 0xC0,
 } ModRmCode_t;
 
@@ -146,12 +148,13 @@ struct Instruction
 {
     int32_t            label_identifier;
 
-    uint8_t            logical_op_code;
+    LogicalOpcode_t    logical_op_code;
 
     size_t             begin_address;
 
     size_t             instruction_size;
-
+    size_t             immediate_size;
+    size_t             displacement_size;
     size_t             op_code_size;
 
     uint8_t            rex_prefix;
@@ -167,8 +170,8 @@ struct Instruction
 
 static const RegisterCode_t ArgPassingRegisters[] =
 {
-    kRDI,
     kRSI,
+    kRDI,
     kRDX,
     kRCX,
     kR8,
