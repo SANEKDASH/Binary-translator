@@ -12,6 +12,10 @@
 
 static const char *kAsmMainName = "main";
 
+static const int32_t kStackAlignSize = 16;
+
+static const int32_t kSizeOfArg = 8;
+
 typedef enum
 {
     kBackendSuccess,
@@ -36,6 +40,8 @@ typedef enum
     kBackendNullArgs,
     kBackendFailedToOpenFile,
     kFailedToFindSymbolIndex,
+    kBackendInconsistentSizes,
+    kBackendUnknownOpcodeSize,
 } BackendErrs_t;
 
 static const size_t kBaseRelocationTableCapacity = 16;

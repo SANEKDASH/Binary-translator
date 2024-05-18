@@ -37,10 +37,6 @@ static BackendErrs_t AsmFuncEntry(BackendContext  *backend_context,
                                   TreeNode        *cur_node,
                                   TableOfNames    *cur_table);
 
-static BackendErrs_t AsmFuncExit            (BackendContext  *backend_context,
-                                             LanguageContext *language_context,
-                                             TreeNode        *cur_node);
-
 static BackendErrs_t AsmLanguageInstructions(BackendContext  *backend_context,
                                              LanguageContext *language_context,
                                              TreeNode        *cur_node,
@@ -160,7 +156,8 @@ static BackendErrs_t AddFuncCallRelocation(BackendContext *backend_context,
 static BackendErrs_t AddFuncCallRelocation(BackendContext *backend_context,
                                            size_t          operation_code)
 {
-    int32_t string_index =  FindString(backend_context, NameTable[operation_code].key_word);
+    int32_t string_index = FindString(backend_context, NameTable[operation_code].key_word);
+
 
     int32_t symbol_index = 0;
 
@@ -172,9 +169,7 @@ static BackendErrs_t AddFuncCallRelocation(BackendContext *backend_context,
                                  string_index,
                                  ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE),
                                  STV_DEFAULT,
-                                 SHN_UNDEF,
-                                 0,
-                                 0);
+                                 SHN_UNDEF, 0, 0);
     }
     else
     {
@@ -188,7 +183,6 @@ static BackendErrs_t AddFuncCallRelocation(BackendContext *backend_context,
         }
     }
 
-    printf("sym index %d\n", symbol_index);
 
     AddRelocation(backend_context->relocation_table,
                   backend_context->cur_address - sizeof(RelativeAddrType_t),
@@ -225,12 +219,14 @@ static int32_t FindSymbol(BackendContext *backend_context,
 {
     int32_t index = 0;
 
-    for (; index < backend_context->symbol_table->sym_count; index++)
+    for (; index < backend_context->symbol_table->sym_count;)
     {
         if (backend_context->symbol_table->sym_array[index].st_name == string_index)
         {
             return index;
         }
+
+        index++;
     }
 
     return -1;
@@ -494,7 +490,6 @@ static BackendErrs_t RespondAddressRequests(BackendContext *backend_context)
                 SetJumpRelativeAddress(&backend_context->instruction_list->data[backend_context->address_requests->requests[i].jmp_instruction_list_pos],
                                         backend_context->label_table->label_array[j].address);
 
-                printf("respond %d\n", backend_context->instruction_list->data[backend_context->address_requests->requests[i].jmp_instruction_list_pos].immediate_arg);
             }
         }
     }
@@ -560,8 +555,9 @@ static size_t AddLabel(BackendContext  *backend_context,
 
     backend_context->label_table->label_array[backend_context->label_table->label_count].address  = address;
     backend_context->label_table->label_array[backend_context->label_table->label_count].func_pos = func_pos;
+    backend_context->label_table->label_array[backend_context->label_table->label_count].identification_number = identification_number;
 
-    backend_context->label_table->label_array[backend_context->label_table->label_count++].identification_number = identification_number;
+    backend_context->label_table->label_count++;
 
     size_t label_string_pos = GetStringsCurPos(backend_context);
 
@@ -576,11 +572,12 @@ static size_t AddLabel(BackendContext  *backend_context,
     }
     else if (func_pos != kFuncLabelPosPoison)
     {
+        label_bind = STB_GLOBAL;
+
         if (func_pos == language_context->tables.main_id_pos)
         {
             AddString(backend_context->strings, (char *) kAsmMainName);
 
-            label_bind = STB_GLOBAL;
         }
         else
         {
@@ -591,14 +588,11 @@ static size_t AddLabel(BackendContext  *backend_context,
         BackendDumpPrintFuncLabel(language_context, func_pos);
     }
 
-
-
     AddSymbol(backend_context->symbol_table, label_string_pos,
                                              ELF64_ST_INFO(label_bind, STT_NOTYPE),
                                              STV_DEFAULT,
                                              kSectionTextIndex,
-                                             backend_context->cur_address,
-                                             0);
+                                             backend_context->cur_address, 0);
 
     return backend_context->label_table->label_count - 1;
 }
@@ -1029,8 +1023,11 @@ static BackendErrs_t AsmFuncDeclaration(BackendContext  *backend_context,
 #define JUMP_IF_ABOVE(label_id)                                            EncodeJump(backend_context, kLogicJumpIfAbove,        kJaRel32 , label_id)
 #define JUMP_IF_ABOVE_OR_EQUAL(label_id)                                   EncodeJump(backend_context, kLogicJumpIfAboveOrEqual, kJaeRel32, label_id)
 
-#define JUMP_IF_LESS_OR_EQUAL(label_id)                                    EncodeJump(backend_context, kLogicJumpIfLessOrEqual,  kJbeRel32, label_id)
-#define JUMP_IF_LESS(label_id)                                             EncodeJump(backend_context, kLogicJumpIfLess,         kJbRel32,  label_id)
+#define JUMP_IF_LESS_OR_EQUAL(label_id)                                    EncodeJump(backend_context, kLogicJumpIfLessOrEqual,  kJleRel32, label_id)
+#define JUMP_IF_LESS(label_id)                                             EncodeJump(backend_context, kLogicJumpIfLess,         kJlRel32,  label_id)
+
+#define JUMP_IF_BELOW_OR_EQUAL(label_id)                                   EncodeJump(backend_context, kLogicJumpIfBelowOrEqual, kJbeRel32, label_id)
+#define JUMP_IF_BELOW(label_id)                                            EncodeJump(backend_context, kLogicJumpIfBelow,        kJbRel32,  label_id)
 
 #define JUMP_IF_EQUAL(label_id)                                            EncodeJump(backend_context, kLogicJumpIfEqual,        kJeRel32,  label_id)
 #define JUMP_IF_NOT_EQUAL(label_id)                                        EncodeJump(backend_context, kLogicJumpIfNotEqual,     kJneRel32, label_id)
@@ -1221,11 +1218,13 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
             {
                 ASM_OPERATOR(cur_node->right);
 
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
+                PUSH_REGISTER(kRAX);
 
                 ASM_OPERATOR(cur_node->left);
 
-                ADD_REGISTER_TO_REGISTER(kRBX, kRAX);
+                POP_IN_REGISTER(kR11);
+
+                ADD_REGISTER_TO_REGISTER(kR11, kRAX);
 
                 break;
             }
@@ -1234,26 +1233,30 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
             {
                 ASM_OPERATOR(cur_node->right);
 
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
+                PUSH_REGISTER(kRAX);
 
                 ASM_OPERATOR(cur_node->left);
 
-                SUB_REGISTER_FROM_REGISTER(kRBX, kRAX);
+                POP_IN_REGISTER(kR11);
+
+                SUB_REGISTER_FROM_REGISTER(kR11, kRAX);
 
                 break;
             }
 
             case kDiv:
             {
+                ASM_OPERATOR(cur_node->right);
+
+                PUSH_REGISTER(kRAX);
+
                 ASM_OPERATOR(cur_node->left);
 
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
-
-                ASM_OPERATOR(cur_node->right);
+                POP_IN_REGISTER(kR11);
 
                 XOR_REGISTER_WITH_REGISTER(kRDX, kRDX);
 
-                DIV_REGISTER(kRBX);
+                DIV_REGISTER(kR11);
 
                 break;
             }
@@ -1262,11 +1265,13 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
             {
                 ASM_OPERATOR(cur_node->right);
 
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);
+                PUSH_REGISTER(kRAX);
 
-                ASM_OPERATOR(cur_node->right);
+                ASM_OPERATOR(cur_node->left);
 
-                IMUL_ON_REGISTER(kRBX);
+                POP_IN_REGISTER(kR11);
+
+                IMUL_ON_REGISTER(kR11);
 
                 break;
             }
@@ -1291,33 +1296,40 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
 
             case kIf:
             {
-
                 ASM_OPERATOR(cur_node->left);
 
                 CMP_REGISTER_TO_IMMEDIATE(kRAX, 0);
 
-                int32_t cur_identify = AddLabelIdentifier(backend_context);
+                int32_t end_label_id = AddLabelIdentifier(backend_context);
 
-                JUMP_IF_LESS_OR_EQUAL(cur_identify);
+                JUMP_IF_LESS_OR_EQUAL(end_label_id);
 
-                AddCommonLabelRequest(backend_context,
-                                      backend_context->instruction_list->tail,
-                                      cur_identify);
+                int32_t jump_on_end_list_pos = backend_context->instruction_list->tail;
 
-                ASM_OPERATOR(cur_node->right);
+                TreeNode *instruction_node = cur_node->right;
 
-                size_t label_pos = 0;
+                while (instruction_node != nullptr)
+                {
+                    ASM_OPERATOR(instruction_node->left);
 
-                AddLabel(backend_context,
-                         language_context,
-                         backend_context->cur_address,
-                         kFuncLabelPosPoison,
-                         cur_identify);
+                    instruction_node = instruction_node->right;
+                }
+
+                int32_t end_label_table_pos = AddLabel(backend_context,
+                                                       language_context,
+                                                       backend_context->cur_address,
+                                                       kFuncLabelPosPoison,
+                                                       end_label_id);
+
+                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_list_pos],
+                                        backend_context->label_table->label_array[end_label_table_pos].address);
                 break;
             }
 
             case kScan:
             {
+                XOR_REGISTER_WITH_REGISTER(kRAX, kRAX);
+
                 CALL(kCallPoison);
 
                 AddFuncCallRelocation(backend_context, kScanPos);
@@ -1331,7 +1343,9 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
             {
                 AsmOperator(backend_context, language_context, cur_node->right, cur_table);
 
-                MOV_REGISTER_TO_REGISTER(kRAX, kRDI);
+                MOV_REGISTER_TO_REGISTER(kRAX, ArgPassingRegisters[0]);
+
+                XOR_REGISTER_WITH_REGISTER(kRAX, kRAX);
 
                 CALL(kCallPoison);
 
@@ -1346,7 +1360,9 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
             {
                 AsmOperator(backend_context, language_context, cur_node->right, cur_table);
 
-                MOV_REGISTER_TO_REGISTER(kRAX, kRDI);
+                MOV_REGISTER_TO_REGISTER(kRAX, ArgPassingRegisters[0]);
+
+                XOR_REGISTER_WITH_REGISTER(kRAX, kRAX);
 
                 CALL(kCallPoison);
 
@@ -1359,10 +1375,11 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
 
             case kSin:
             {
-
                 AsmOperator(backend_context, language_context, cur_node->right, cur_table);
 
-                MOV_REGISTER_TO_REGISTER(kRAX, kRDI);
+                MOV_REGISTER_TO_REGISTER(kRAX, ArgPassingRegisters[0]);
+
+                XOR_REGISTER_WITH_REGISTER(kRAX, kRAX);
 
                 CALL(kCallPoison);
 
@@ -1375,10 +1392,11 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
 
             case kSqrt:
             {
-
                 AsmOperator(backend_context, language_context, cur_node->right, cur_table);
 
-                MOV_REGISTER_TO_REGISTER(kRAX, kRDI);
+                MOV_REGISTER_TO_REGISTER(kRAX, ArgPassingRegisters[0]);
+
+                XOR_REGISTER_WITH_REGISTER(kRAX, kRAX);
 
                 CALL(kCallPoison);
 
@@ -1389,47 +1407,47 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
                 break;
             }
 
-#define LOGICAL_OPERATOR_CODE_GEN(const_name, encode_func_name, code)                                           \
+#define LOGICAL_OPERATOR_CODE_GEN(const_name, JumpInstruction, code)                                            \
             case const_name:                                                                                    \
             {                                                                                                   \
                 ASM_OPERATOR(cur_node->right);                                                                  \
                                                                                                                 \
-                MOV_REGISTER_TO_REGISTER(kRAX, kRBX);                                                           \
+                MOV_REGISTER_TO_REGISTER(kRAX, kR11);                                                           \
                                                                                                                 \
                 ASM_OPERATOR(cur_node->left);                                                                   \
                                                                                                                 \
                 code                                                                                            \
                                                                                                                 \
-                CMP_REGISTER_TO_REGISTER(kRAX, kRBX);                                                           \
+                int32_t start_label_id = AddLabelIdentifier(backend_context);                                   \
+                int32_t end_label_id   = AddLabelIdentifier(backend_context);                                   \
                                                                                                                 \
-                int32_t logic_op_start_label_id = AddLabelIdentifier(backend_context);                          \
-                int32_t logic_op_end_label_id   = AddLabelIdentifier(backend_context);                          \
+                JumpInstruction(start_label_id);                                                                \
                                                                                                                 \
-                encode_func_name(logic_op_start_label_id);                                                      \
+                int32_t jump_on_start_list_pos = backend_context->instruction_list->tail;                       \
                                                                                                                 \
-                int32_t jump_on_start_pos = backend_context->instruction_list->tail;                            \
+                MOV_IMM_TO_REGISTER(0, kRAX);                                                                   \
                                                                                                                 \
-                JUMP(logic_op_start_label_id);                                                                  \
+                JUMP(end_label_id);                                                                             \
                                                                                                                 \
-                int32_t jump_on_end_pos = backend_context->instruction_list->tail;                              \
+                int32_t jump_on_end_list_pos = backend_context->instruction_list->tail;                         \
                                                                                                                 \
                 size_t start_label_pos = AddLabel(backend_context,                                              \
                                                   language_context,                                             \
                                                   backend_context->cur_address,                                 \
                                                   kFuncLabelPosPoison,                                          \
-                                                  logic_op_start_label_id);                                     \
+                                                  start_label_id);                                              \
                 MOV_IMM_TO_REGISTER(1, kRAX);                                                                   \
                                                                                                                 \
                 size_t end_label_pos = AddLabel(backend_context,                                                \
                                                 language_context,                                               \
                                                 backend_context->cur_address,                                   \
                                                 kFuncLabelPosPoison,                                            \
-                                                logic_op_end_label_id);                                         \
+                                                end_label_id);                                                  \
                                                                                                                 \
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_start_pos],             \
+                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_start_list_pos],        \
                                         backend_context->label_table->label_array[start_label_pos].address);    \
                                                                                                                 \
-                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_pos],               \
+                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_end_list_pos],          \
                                         backend_context->label_table->label_array[end_label_pos].address);      \
                                                                                                                 \
                 break;                                                                                          \
@@ -1533,7 +1551,6 @@ static BackendErrs_t AsmGetFuncParams(BackendContext  *backend_context,
 
     while (cur_arg_node != nullptr)
     {
-        printf("ptr %p\n", cur_arg_node);
 
         if (cur_arg_node->left != nullptr)
         {
@@ -1552,7 +1569,7 @@ static BackendErrs_t AsmGetFuncParams(BackendContext  *backend_context,
 
     for (; (passed_args_count < args_count) && (passed_args_count < kArgPassingRegisterCount); passed_args_count++)
     {
-        MOV_REGISTER_TO_REG_MEMORY(ArgPassingRegisters[passed_args_count], kRBP, (passed_args_count + 1) * (-8));
+        MOV_REGISTER_TO_REG_MEMORY(ArgPassingRegisters[passed_args_count], kRBP, (passed_args_count + 1) * (-kSizeOfArg));
     }
 
     if (passed_args_count < kArgPassingRegisterCount)
@@ -1562,7 +1579,7 @@ static BackendErrs_t AsmGetFuncParams(BackendContext  *backend_context,
 
     while (passed_args_count < args_count)
     {
-        MOV_REG_MEMORY_TO_REGISTER(kRBP, (passed_args_count - kArgPassingRegisterCount + 3) * 8, kRAX);
+        MOV_REG_MEMORY_TO_REGISTER(kRBP, (passed_args_count - kArgPassingRegisterCount + 3) * kSizeOfArg, kRAX);
 
         MOV_REGISTER_TO_REG_MEMORY(kRAX, kRBP, (passed_args_count + 1) * (-8));
     }
@@ -1585,31 +1602,17 @@ static BackendErrs_t AsmFuncEntry(BackendContext  *backend_context,
 
     MOV_REGISTER_TO_REGISTER(kRSP, kRBP);
 
-    AsmGetFuncParams(backend_context,
-                     language_context,
-                     cur_node,
-                     cur_table);
+    if (cur_table->name_count == 1)
+    {
+        SUB_IMMEDIATE_FROM_REGISTER(kStackAlignSize, kRSP);
+    }
+    else if (cur_table->name_count > 0)
+    {
+        SUB_IMMEDIATE_FROM_REGISTER((cur_table->name_count - (1 - cur_table->name_count % 2)) * kStackAlignSize, kRSP);
+    }
 
-    SUB_IMMEDIATE_FROM_REGISTER((cur_table->name_count + 1) * 8, kRSP);
-
-    return kBackendSuccess;
-}
-
-//==============================================================================
-
-static BackendErrs_t AsmFuncExit(BackendContext  *backend_context,
-                                 LanguageContext *language_context,
-                                 TreeNode        *cur_node)
-{
-    CHECK(backend_context);
-    CHECK(language_context);
-    CHECK(cur_node);
-
-    POP_IN_REGISTER(kRBP);
-
-    RET();
+    AsmGetFuncParams(backend_context, language_context, cur_node, cur_table);
 
     return kBackendSuccess;
 }
 
-//==============================================================================

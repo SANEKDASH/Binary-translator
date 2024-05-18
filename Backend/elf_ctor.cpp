@@ -56,7 +56,8 @@ static BackendErrs_t WriteSectionHeaderStringTableData(FILE *output_file);
 
 static BackendErrs_t WriteInstruction(BackendContext *backend_context,
                                       Instruction    *instruction,
-                                      FILE           *output_file);
+                                      uint8_t        *instruction_buffer,
+                                      size_t         *buffer_pos);
 
 static BackendErrs_t WriteSectionSymbolTableData(SymbolTable *symbol_table,
                                                  FILE        *output_file);
@@ -67,7 +68,6 @@ static BackendErrs_t WriteDataAlign(size_t  data_size,
 static BackendErrs_t WriteSectionStringTableData(StringTable *strings,
                                                  FILE        *output_file);
 
-
 static BackendErrs_t WriteSectionRelaTextData(RelocationTable *rel_table,
                                               FILE            *output_file);
 
@@ -76,6 +76,8 @@ static size_t GetAlignedSize(size_t data_size);
 static size_t GetLastLocalSymbolIndex(SymbolTable* sym_table);
 
 static BackendErrs_t ChangeRelocationSymbolIndex(RelocationTable *relocation_table,
+                                                 Elf64_Rela      *new_relocation_table_array,
+                                                 size_t          *pos,
                                                  size_t           old_index,
                                                  size_t           new_index);
 
@@ -136,9 +138,6 @@ BackendErrs_t InitRelocatableFile(BackendContext  *backend_context,
     CHECK(language_context);
     CHECK(rel_file);
 
-    SortSymbolTable(backend_context->symbol_table,
-                    backend_context->relocation_table);
-
     SetRelocatableFileHeader(rel_file);
 
     SetSectionHeaders(backend_context,
@@ -156,19 +155,23 @@ static BackendErrs_t SortSymbolTable(SymbolTable     *symbol_table,
     CHECK(symbol_table);
     CHECK(relocation_table);
 
-    Elf64_Sym *new_sym_array = (Elf64_Sym *) calloc(symbol_table->capacity, sizeof(Elf64_Sym));;
+    Elf64_Sym *new_sym_array = (Elf64_Sym *) calloc(symbol_table->capacity, sizeof(Elf64_Sym));
 
-    size_t cur_pos = 0;
+    Elf64_Rela *new_rel_table_array = (Elf64_Rela *) calloc(relocation_table->capacity, sizeof(Elf64_Rela));
+
+    size_t new_rel_table_array_cur_pos = 0;
+
+    size_t new_sym_table_cur_pos = 0;
 
     for (size_t i = 0; i < symbol_table->sym_count; i++)
     {
         if (ELF64_ST_BIND(symbol_table->sym_array[i].st_info) == STB_LOCAL)
         {
-            new_sym_array[cur_pos] = symbol_table->sym_array[i];
+            new_sym_array[new_sym_table_cur_pos] = symbol_table->sym_array[i];
 
-            ChangeRelocationSymbolIndex(relocation_table, i, cur_pos);
+            ChangeRelocationSymbolIndex(relocation_table, new_rel_table_array, &new_rel_table_array_cur_pos, i, new_sym_table_cur_pos);
 
-            cur_pos++;
+            new_sym_table_cur_pos++;
         }
     }
 
@@ -176,24 +179,33 @@ static BackendErrs_t SortSymbolTable(SymbolTable     *symbol_table,
     {
         if (ELF64_ST_BIND(symbol_table->sym_array[i].st_info) != STB_LOCAL)
         {
-            new_sym_array[cur_pos] = symbol_table->sym_array[i];
+            new_sym_array[new_sym_table_cur_pos] = symbol_table->sym_array[i];
 
-            ChangeRelocationSymbolIndex(relocation_table, i, cur_pos);
+            ChangeRelocationSymbolIndex(relocation_table, new_rel_table_array, &new_rel_table_array_cur_pos, i, new_sym_table_cur_pos);
 
-            cur_pos++;
+            new_sym_table_cur_pos++;
         }
     }
 
-    if (cur_pos != symbol_table->sym_count)
+    if (new_sym_table_cur_pos != symbol_table->sym_count)
     {
         ColorPrintf(kRed, "%s() failed sort\n", __func__);
 
         free(new_sym_array);
     }
 
+    if (new_rel_table_array_cur_pos != relocation_table->relocation_count)
+    {
+        ColorPrintf(kRed, "%s() failed to sort fucking relocations\n", __func__);
+    }
+
     free(symbol_table->sym_array);
 
     symbol_table->sym_array = new_sym_array;
+
+    free(relocation_table->relocation_array);
+
+    relocation_table->relocation_array = new_rel_table_array;
 
     return kBackendSuccess;
 }
@@ -201,15 +213,18 @@ static BackendErrs_t SortSymbolTable(SymbolTable     *symbol_table,
 //==============================================================================
 
 static BackendErrs_t ChangeRelocationSymbolIndex(RelocationTable *relocation_table,
+                                                 Elf64_Rela      *new_relocation_table_array,
+                                                 size_t          *pos,
                                                  size_t           old_index,
                                                  size_t           new_index)
 {
-
     for (size_t i = 0; i < relocation_table->relocation_count; i++)
     {
         if (ELF64_R_SYM(relocation_table->relocation_array[i].r_info) == old_index)
         {
-            relocation_table->relocation_array[i].r_info = ELF64_R_INFO(new_index, STT_FUNC);
+            new_relocation_table_array[*pos] = relocation_table->relocation_array[i];
+
+            new_relocation_table_array[(*pos)++].r_info = ELF64_R_INFO(new_index, ELF64_R_TYPE(relocation_table->relocation_array[i].r_info));
         }
     }
 
@@ -267,11 +282,6 @@ static BackendErrs_t WriteElf(BackendContext  *backend_context,
     CHECK(rel_file);
     CHECK(output_file);
 
-    for (size_t i = 0; i < backend_context->strings->string_count; i++)
-    {
-        printf("%d - %s\n", i, backend_context->strings->string_array[i]);
-    }
-
     WriteElfHeadersInFile(rel_file, output_file);
 
     WriteSectionTextData             (backend_context, output_file);
@@ -290,23 +300,7 @@ static const size_t kAlignSize = 16;
 static BackendErrs_t WriteSectionRelaTextData(RelocationTable *rel_table,
                                               FILE            *output_file)
 {
-    fwrite(rel_table->relocation_array,
-           sizeof(Elf64_Rela),
-           rel_table->relocation_count,
-           output_file);
-
-    /*for (size_t i = 0; i < rel_table->relocation_count; i++)
-    {
-        fwrite(&rel_table->relocation_array[i].r_addend,
-               sizeof(rel_table->relocation_array[i].r_addend), 1, output_file);
-
-        fwrite(&rel_table->relocation_array[i].r_info,
-               sizeof(rel_table->relocation_array[i].r_info), 1, output_file);
-
-        fwrite(&rel_table->relocation_array[i].r_offset,
-               sizeof(rel_table->relocation_array[i].r_offset), 1, output_file);
-
-    }*/
+    fwrite(rel_table->relocation_array, sizeof(Elf64_Rela), rel_table->relocation_count, output_file);
 
     WriteDataAlign(rel_table->relocation_count * sizeof(Elf64_Rela), output_file);
 
@@ -320,14 +314,10 @@ static BackendErrs_t WriteSectionStringTableData(StringTable *strings,
 {
     for (size_t i = 0; i < strings->string_count; i++)
     {
-        fwrite(strings->string_array[i],
-               sizeof(char),
-               strlen(strings->string_array[i]) + 1,
-               output_file);
+        fwrite(strings->string_array[i], sizeof(char), strlen(strings->string_array[i]) + 1, output_file);
     }
 
-    WriteDataAlign(strings->cur_size,
-                   output_file);
+    WriteDataAlign(strings->cur_size, output_file);
 
     return kBackendSuccess;
 }
@@ -337,14 +327,10 @@ static BackendErrs_t WriteSectionStringTableData(StringTable *strings,
 static BackendErrs_t WriteSectionSymbolTableData(SymbolTable *symbol_table,
                                                  FILE        *output_file)
 {
-    fwrite(symbol_table->sym_array,
-           sizeof(Elf64_Sym),
-           symbol_table->sym_count,
-           output_file);
+    fwrite(symbol_table->sym_array, sizeof(Elf64_Sym), symbol_table->sym_count, output_file);
 
 
-    WriteDataAlign(sizeof(Elf64_Sym) * symbol_table->sym_count,
-                   output_file);
+    WriteDataAlign(sizeof(Elf64_Sym) * symbol_table->sym_count, output_file);
 
     return kBackendSuccess;
 }
@@ -366,12 +352,14 @@ static size_t GetAlignedSize(size_t data_size)
 static BackendErrs_t WriteDataAlign(size_t  data_size,
                                     FILE   *output_file)
 {
-    size_t align_size = kAlignSize - data_size % kAlignSize;
+    size_t align_size = kAlignSize - ftell(output_file) % kAlignSize;
 
     if (align_size == kAlignSize)
     {
         return kBackendSuccess;
     }
+
+    printf("ALIGN SIZE = %d\n", align_size);
 
     uint8_t *null_array = (uint8_t *) calloc(align_size, sizeof(uint8_t));
 
@@ -386,13 +374,9 @@ static BackendErrs_t WriteDataAlign(size_t  data_size,
 
 static BackendErrs_t WriteSectionHeaderStringTableData(FILE *output_file)
 {
-    fwrite(HeaderStringTable,
-           sizeof(char),
-           kHeaderStringTableSize,
-           output_file);
+    fwrite(HeaderStringTable, sizeof(char), kHeaderStringTableSize, output_file);
 
-    WriteDataAlign(kHeaderStringTableSize,
-                   output_file);
+    WriteDataAlign(kHeaderStringTableSize, output_file);
 
     return kBackendSuccess;
 }
@@ -405,18 +389,34 @@ static BackendErrs_t WriteSectionTextData(BackendContext *backend_context,
     CHECK(backend_context);
     CHECK(output_file);
 
+    uint8_t *instruction_buffer = (uint8_t *) calloc(backend_context->cur_address, sizeof(uint8_t));
+
+    size_t cur_buffer_pos = 0;
+
     size_t cur_node_pos = backend_context->instruction_list->next[backend_context->instruction_list->head];
 
     while (cur_node_pos != backend_context->instruction_list->head)
     {
         WriteInstruction(backend_context,
                          &backend_context->instruction_list->data[cur_node_pos],
-                         output_file);
+                         instruction_buffer,
+                         &cur_buffer_pos);
 
         cur_node_pos = backend_context->instruction_list->next[cur_node_pos];
     }
 
-    WriteDataAlign(backend_context->cur_address, output_file);
+    if (cur_buffer_pos != backend_context->cur_address)
+    {
+        ColorPrintf(kRed, "%s() inconsistent sizes\n", __func__);
+
+        return kBackendInconsistentSizes;
+    }
+
+    fwrite(instruction_buffer, sizeof(uint8_t), cur_buffer_pos, output_file);
+
+    free(instruction_buffer);
+
+    WriteDataAlign(cur_buffer_pos, output_file);
 
     return kBackendSuccess;
 }
@@ -425,32 +425,55 @@ static BackendErrs_t WriteSectionTextData(BackendContext *backend_context,
 
 static BackendErrs_t WriteInstruction(BackendContext *backend_context,
                                       Instruction    *instruction,
-                                      FILE           *output_file)
+                                      uint8_t        *instruction_buffer,
+                                      size_t         *buffer_pos)
 {
     CHECK(backend_context);
     CHECK(instruction);
-    CHECK(output_file);
 
     if (instruction->rex_prefix != 0)
     {
-        fwrite(&instruction->rex_prefix, sizeof(instruction->rex_prefix), 1, output_file);
+        *(uint8_t *) (instruction_buffer + *buffer_pos) = instruction->rex_prefix;
+
+        *buffer_pos += sizeof(instruction->rex_prefix);
     }
 
-    fwrite(&instruction->op_code, sizeof(uint8_t), instruction->op_code_size, output_file);
+    if (instruction->op_code_size == 1)
+    {
+        *(uint8_t *) (instruction_buffer + *buffer_pos) = (uint8_t) instruction->op_code;
+    }
+    else if (instruction->op_code_size == 2)
+    {
+        *(uint16_t *) (instruction_buffer + *buffer_pos) = instruction->op_code;
+    }
+    else
+    {
+        ColorPrintf(kRed, "%s() unknown opcode size\n", __func__);
+
+        return kBackendUnknownOpcodeSize;
+    }
+
+    *buffer_pos += instruction->op_code_size;
 
     if (instruction->mod_rm != 0)
     {
-        fwrite(&instruction->mod_rm, sizeof(instruction->mod_rm), 1, output_file);
+        *(uint8_t *) (instruction_buffer + *buffer_pos) = instruction->mod_rm;
+
+        *buffer_pos += sizeof(instruction->mod_rm);
     }
 
     if (instruction->immediate_size != 0)
     {
-        fwrite(&instruction->immediate_arg, 1, instruction->immediate_size, output_file);
+        *(ImmediateType_t *) (instruction_buffer + *buffer_pos) = instruction->immediate_arg;
+
+        *buffer_pos += instruction->immediate_size;
     }
 
     if (instruction->displacement_size != 0)
     {
-        fwrite(&instruction->displacement, 1, instruction->displacement_size, output_file);
+        *(DisplacementType_t *) (instruction_buffer + *buffer_pos) = instruction->displacement;
+
+        *buffer_pos += instruction->displacement_size;
     }
 
     return kBackendSuccess;
@@ -557,7 +580,7 @@ static BackendErrs_t SetSectionSymbolTableHeader(BackendContext  *backend_contex
                      backend_context->symbol_table->sym_count * sizeof(Elf64_Sym),
                      4,
                      GetLastLocalSymbolIndex(backend_context->symbol_table),
-                     8,
+                     0x8,
                      sizeof(Elf64_Sym));
 
 

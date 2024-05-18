@@ -61,6 +61,11 @@ BackendErrs_t SetInstructionSize(Instruction *instruction)
 
     instruction->instruction_size = 0;
 
+    if (instruction->rex_prefix != 0)
+    {
+        instruction->instruction_size += sizeof(instruction->rex_prefix);
+    }
+
     if (instruction->op_code <= 0xff)
     {
         instruction->op_code_size = 1;
@@ -70,24 +75,16 @@ BackendErrs_t SetInstructionSize(Instruction *instruction)
         instruction->op_code_size = 2;
     }
 
-    instruction->instruction_size += instruction->displacement_size;
-
-    instruction->instruction_size += instruction->immediate_size;
+    instruction->instruction_size += instruction->op_code_size;
 
     if (instruction->mod_rm != 0)
     {
         instruction->instruction_size += sizeof(instruction->mod_rm);
     }
 
-    if (instruction->rex_prefix != 0)
-    {
-        instruction->instruction_size += sizeof(instruction->rex_prefix);
-    }
+    instruction->instruction_size += instruction->displacement_size;
 
-    if (instruction->op_code != 0)
-    {
-        instruction->instruction_size += instruction->op_code_size;
-    }
+    instruction->instruction_size += instruction->immediate_size;
 
     return kBackendSuccess;
 }
@@ -325,9 +322,9 @@ BackendErrs_t EncodePopInRegister(BackendContext *backend_context,
     if (IsNewRegister(dest_reg))
     {
         SET_REX_PREFIX(kRexPrefixNoOptions,
-                       kRegisterExtension,
                        kRexPrefixNoOptions,
-                       kRexPrefixNoOptions);
+                       kRexPrefixNoOptions,
+                       kModRmExtension);
     }
 
     SET_INSTRUCTION(kPopR64 + GetRegisterBase(dest_reg), 0, 0, kLogicPopInRegister, 0, 0);
@@ -529,9 +526,9 @@ BackendErrs_t EncodeSubRegisterFromRegister(BackendContext *backend_context,
 
     SET_REX_PREFIX(kQwordUsing, reg_extension, kRexPrefixNoOptions, rm_extension);
 
-    SET_INSTRUCTION(kSubR64FromRm64, 0, 0, kLogicSubRegisterFromRegister, 0, 0);
-
     SET_MOD_RM(kRegister, GetRegisterBase(src_reg), GetRegisterBase(dest_reg));
+
+    SET_INSTRUCTION(kSubR64FromRm64, 0, 0, kLogicSubRegisterFromRegister, 0, 0);
 
     ADD_INSTRUCTION(&instruction);
 
@@ -682,7 +679,7 @@ BackendErrs_t EncodeDivRegister(BackendContext *backend_context,
 
     SET_REX_PREFIX(kQwordUsing, 0, 0, rm_extension);
 
-    SET_MOD_RM(kRegister, (RegisterCode_t) 0x6, GetRegisterBase(dest_reg));
+    SET_MOD_RM(kRegister, (RegisterCode_t) 0x7, GetRegisterBase(dest_reg));
 
     SET_INSTRUCTION(kDivRm64, 0, 0, kLogicDivRegisterOnRax, 0, 0);
 

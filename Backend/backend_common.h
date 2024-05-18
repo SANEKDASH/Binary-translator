@@ -65,6 +65,9 @@ typedef enum
     kJbeRel32         = 0x860f,
     kJbRel32          = 0x820f,
 
+    kJleRel32         = 0x8e0f,
+    kJlRel32          = 0x8c0f,
+
     kJaeRel32         = 0x830f,
     kJaRel32          = 0x870f,
 
@@ -114,6 +117,9 @@ typedef enum
 
     kLogicJumpIfLessOrEqual,
     kLogicJumpIfLess,
+
+    kLogicJumpIfBelowOrEqual,
+    kLogicJumpIfBelow,
 
     kLogicJumpIfAbove,
     kLogicJumpIfAboveOrEqual,
@@ -170,8 +176,8 @@ struct Instruction
 
 static const RegisterCode_t ArgPassingRegisters[] =
 {
-    kRSI,
     kRDI,
+    kRSI,
     kRDX,
     kRCX,
     kR8,
@@ -188,8 +194,11 @@ struct Jump
 
 static const Jump kJumpsArray[] =
 {
-    kLogicJumpIfLessOrEqual, "jbe",
-    kLogicJumpIfLess,        "je",
+    kLogicJumpIfLessOrEqual, "jle",
+    kLogicJumpIfLess,        "jl",
+
+    kLogicJumpIfBelowOrEqual, "jbe",
+    kLogicJumpIfBelow,       "jb",
 
     kLogicJumpIfAbove,       "ja",
     kLogicJumpIfAboveOrEqual,"jae",

@@ -27,8 +27,6 @@ typedef enum
     kWhile            = 12, // while
     kAssign           = 13, // =
 
-// shit can be done only with libc funcs
-// motivation to make obj file increased
     kSin              = 21,  // sin
     kCos              = 22,  // cos
     kSqrt             = 29,  // sqrt
@@ -67,45 +65,19 @@ typedef enum
 struct KeyWord
 {
     const char *key_word;
+
     KeyCode_t   key_code;
+
     size_t      word_len;
 };
 
 static const KeyWord NameTable[]=
 {
-    "лежать+сосать"         ,kAdd,              strlen("лежать+сосать"),
-    "потерял_птсы"          ,kSub,              strlen("потерял_птсы"),
-    "посадить_на_zxc"       ,kMult,             strlen("посадить_на_zxc"),
-    "сплитим_на"            ,kDiv,              strlen("сплитим_на"),
-    "углы_вымеряет"         ,kSin,              strlen("углы_вымеряет"),
-    "это_все_преломления"   ,kCos,              strlen("это_все_преломления"),
-    "соси_бля"              ,kFloor,            strlen("соси_бля"),
-    "реквием"               ,kDiff,             strlen("реквием" ),
-    "трент_ультует"         ,kSqrt,             strlen("трент_ультует"),
-    "???"                   ,kIf,               strlen("???"),
-    "пока"                  ,kWhile,            strlen("пока"),
-    "ты"                    ,kAssign,           strlen("ты"),
-    "больше"                ,kMore,             strlen("больше"),
-    "меньше"                ,kLess,             strlen("меньше" ),
-    "и"                     ,kAnd,              strlen("и" ),
-    "или"                   ,kOr,               strlen("или"),
-    "не_меньше"             ,kMoreOrEqual,      strlen("не_меньше"),
-    "не_больше"             ,kLessOrEqual,      strlen("не_больше" ),
-    "точно"                 ,kEqual,            strlen("точно" ),
-    "ты_не"                 ,kNotEqual,         strlen("ты_не" ),
-    "стой_блять!"           ,kBreak,            strlen("стой_блять!" ),
-    "иди_блять!"            ,kContinue,         strlen("иди_блять!" ),
-    "верни_курьера_блять"   ,kReturn,           strlen("верни_курьера_блять"),
-    "мать"                  ,kLeftBracket,      strlen("мать"),
-    "ебал"                  ,kRightBracket,     strlen("ебал"  ),
-    "стань"                 ,kLeftZoneBracket,  strlen("стань" ),
-    "мид"                   ,kRightZoneBracket, strlen("мид" ),
-    ","                     ,kEnumOp,           strlen(","),
-    "?"                     ,kEndOfLine,        strlen("?"    ),
-    "долбоеб"               ,kDoubleType,       strlen("долбоеб" ),
-    "пишу_твоей_матери"     ,kPrint,            strlen("пишу_твоей_матери"),
-    "скажи_мне"             ,kScan,             strlen("скажи_мне"),
-    "иди_нахуй"             ,kAbort,            strlen("иди_нахуй")
+    #define DEF_KEYWORD(str, const) str, const, strlen(str),
+
+    #include "keywords.gen.h"
+
+    #undef DEF_KEYWORD
 };
 
 static const size_t kPrintPos = 30;
