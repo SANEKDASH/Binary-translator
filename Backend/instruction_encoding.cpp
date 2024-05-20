@@ -14,40 +14,6 @@ static bool IsNewRegister(RegisterCode_t reg);
 
 //==============================================================================
 
-bool IsImmediateUsing(LogicalOpcode_t logical_op_code)
-{
-    return logical_op_code == kLogicPushImmediate            ||
-           logical_op_code == kLogicMovImmediateToRegister   ||
-           logical_op_code == kLogicAddImmediateToRegister   ||
-           logical_op_code == kLogicSubImmediateFromRegister ||
-           logical_op_code == kLogicCmpRegisterToImmediate   ||
-           logical_op_code == kLogicJumpIfLessOrEqual;
-}
-
-//==============================================================================
-
-bool IsDisplacementUsing(LogicalOpcode_t logical_op_code)
-{
-    return logical_op_code == kLogicMovRegisterToMemory ||
-           logical_op_code == kLogicMovRmToRegister;
-}
-
-//==============================================================================
-
-bool IsJumpInstruction(LogicalOpcode_t logical_op_code)
-{
-    return logical_op_code == kLogicJumpIfLessOrEqual  ||
-           logical_op_code == kLogicJumpIfLess         ||
-           logical_op_code == kLogicJumpIfAboveOrEqual ||
-           logical_op_code == kLogicJumpIfAbove        ||
-           logical_op_code == kLogicJumpIfEqual        ||
-           logical_op_code == kLogicJumpIfNotEqual     ||
-           logical_op_code == kLogicJmp                ||
-           logical_op_code == kLogicCall;
-}
-
-//==============================================================================
-
 static bool IsNewRegister(RegisterCode_t reg)
 {
     return reg >> 3;
@@ -539,6 +505,8 @@ BackendErrs_t EncodeSubRegisterFromRegister(BackendContext *backend_context,
 
 //==============================================================================
 
+static const uint8_t kSubImmFromRegModRmRegCode = 0x05;
+
 BackendErrs_t EncodeSubImmediateFromRegister(BackendContext *backend_context,
                                              RegisterCode_t  dest_reg,
                                              ImmediateType_t immediate)
@@ -554,7 +522,7 @@ BackendErrs_t EncodeSubImmediateFromRegister(BackendContext *backend_context,
 
     SET_REX_PREFIX(kQwordUsing, kRexPrefixNoOptions, kRexPrefixNoOptions, rm_extension);
 
-    SET_MOD_RM(kRegister, (RegisterCode_t) 0x5, GetRegisterBase(dest_reg));
+    SET_MOD_RM(kRegister, (RegisterCode_t) kSubImmFromRegModRmRegCode, GetRegisterBase(dest_reg));
 
     SET_INSTRUCTION(kSubImm32FromRm64, 0, immediate, kLogicSubImmediateFromRegister, sizeof(int32_t), 0);
 
@@ -665,6 +633,8 @@ BackendErrs_t EncodeXorRegisterWithRegister(BackendContext *backend_context,
 
 //==============================================================================
 
+static const uint8_t kDivRegModRmRegisterCode = 0x7;
+
 BackendErrs_t EncodeDivRegister(BackendContext *backend_context,
                                 RegisterCode_t  dest_reg)
 {
@@ -679,7 +649,7 @@ BackendErrs_t EncodeDivRegister(BackendContext *backend_context,
 
     SET_REX_PREFIX(kQwordUsing, 0, 0, rm_extension);
 
-    SET_MOD_RM(kRegister, (RegisterCode_t) 0x7, GetRegisterBase(dest_reg));
+    SET_MOD_RM(kRegister, (RegisterCode_t) kDivRegModRmRegisterCode, GetRegisterBase(dest_reg));
 
     SET_INSTRUCTION(kDivRm64, 0, 0, kLogicDivRegisterOnRax, 0, 0);
 
@@ -691,6 +661,8 @@ BackendErrs_t EncodeDivRegister(BackendContext *backend_context,
 }
 
 //==============================================================================
+
+static const uint8_t kImulRegisterModRmRegisterCode = 0x04;
 
 BackendErrs_t EncodeImulRegister(BackendContext *backend_context,
                                  RegisterCode_t  dest_reg)
@@ -706,7 +678,7 @@ BackendErrs_t EncodeImulRegister(BackendContext *backend_context,
 
     SET_REX_PREFIX(kQwordUsing, 0, 0, rm_extension);
 
-    SET_MOD_RM(kRegister, (RegisterCode_t) 0x4, GetRegisterBase(dest_reg));
+    SET_MOD_RM(kRegister, (RegisterCode_t) kImulRegisterModRmRegisterCode, GetRegisterBase(dest_reg));
 
     SET_INSTRUCTION(kImulRm64, 0, 0, kLogicImulRegisterOnRax, 0, 0);
 
@@ -718,6 +690,8 @@ BackendErrs_t EncodeImulRegister(BackendContext *backend_context,
 }
 
 //==============================================================================
+
+static const uint8_t kCmpRegWithImmModRmRegisterCode = 0x07;
 
 BackendErrs_t EncodeCmpRegisterWithImmediate(BackendContext *backend_context,
                                              RegisterCode_t  dest_reg,
@@ -734,7 +708,7 @@ BackendErrs_t EncodeCmpRegisterWithImmediate(BackendContext *backend_context,
 
     SET_REX_PREFIX(kQwordUsing, 0, 0, rm_extension);
 
-    SET_MOD_RM(kRegister, (RegisterCode_t) 0x7, GetRegisterBase(dest_reg));
+    SET_MOD_RM(kRegister, (RegisterCode_t) kCmpRegWithImmModRmRegisterCode, GetRegisterBase(dest_reg));
 
     SET_INSTRUCTION(kCmpRm64WithImm32, 0, immediate, kLogicCmpRegisterToImmediate, sizeof(int32_t), 0);
 
@@ -793,3 +767,5 @@ BackendErrs_t EncodeLeave(BackendContext *backend_context)
 
     return kBackendSuccess;
 }
+
+//==============================================================================

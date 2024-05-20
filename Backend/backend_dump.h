@@ -13,11 +13,9 @@ BackendErrs_t BackendDumpPrintJump(Instruction *instruction,
                                    int32_t      label_identifier);
 
 BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
-                                       int32_t          func_pos);
+                                        int32_t          func_pos);
 
 BackendErrs_t DumpPrintCommonLabel(int32_t identification_number);
-
-BackendErrs_t BeginBackendDump();
 
 BackendErrs_t BackendDumpPrintCall(LanguageContext *language_context,
                                    int32_t          func_pos);
@@ -25,7 +23,21 @@ BackendErrs_t BackendDumpPrintCall(LanguageContext *language_context,
 BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
                                         int32_t          func_pos);
 
+BackendErrs_t BeginBackendDump();
+
 BackendErrs_t EndBackendDump();
+
+#ifdef DEBUG
+
+    #define BEGIN_BACKEND_DUMP() BeginBackendDump()
+    #define END_BACKEND_DUMP()   EndBackendDump()
+
+#else
+
+    #define BEGIN_BACKEND_DUMP()
+    #define END_BACKEND_DUMP()
+
+#endif
 
 BackendErrs_t BackendDumpPrintString(const char *str);
 
@@ -37,21 +49,21 @@ struct Register
 
 static const Register kRegisterArray[] =
 {
-    "rax", 0x0,
-    "rcx", 0x1,
-    "rdx", 0x2,
-    "rbx", 0x3,
-    "rsp", 0x4,
-    "rbp", 0x5,
-    "rsi", 0x6,
-    "rdi", 0x7,
-    "r8",  0x8,
-    "r9",  0x9,
-    "r10", 0xa,
-    "r11", 0xb,
-    "r12", 0xc,
-    "r13", 0xd,
-    "r15", 0xf,
+    {"rax", 0x0},
+    {"rcx", 0x1},
+    {"rdx", 0x2},
+    {"rbx", 0x3},
+    {"rsp", 0x4},
+    {"rbp", 0x5},
+    {"rsi", 0x6},
+    {"rdi", 0x7},
+    {"r8",  0x8},
+    {"r9",  0x9},
+    {"r10", 0xa},
+    {"r11", 0xb},
+    {"r12", 0xc},
+    {"r13", 0xd},
+    {"r15", 0xf},
 };
 
 static size_t kRegisterArraySize = sizeof(kRegisterArray) / sizeof(Register);

@@ -895,13 +895,13 @@ BackendErrs_t GetAsmInstructionsOutLanguageContext(BackendContext  *backend_cont
         return kBackendNullTree;
     }
 
-    BeginBackendDump();
+    BEGIN_BACKEND_DUMP();
 
     AsmExternalDeclarations(backend_context, language_context, root);
 
     RespondAddressRequests(backend_context);
 
-    EndBackendDump();
+    END_BACKEND_DUMP();
 
     return kBackendSuccess;
 }
@@ -1291,6 +1291,53 @@ static BackendErrs_t AsmOperator(BackendContext  *backend_context,
 
                 MOV_REGISTER_TO_REG_MEMORY(kRAX, kRBP, - (variable_pos + 1) * 8 );
 
+                break;
+            }
+
+            case kWhile:
+            {
+                int32_t cycle_body_label_id = AddLabelIdentifier(backend_context);
+                int32_t test_start_label_id = AddLabelIdentifier(backend_context);
+                int32_t test_end_label_id   = AddLabelIdentifier(backend_context);
+
+                JUMP(test_start_label_id);
+
+                int32_t jump_on_test_list_pos = backend_context->instruction_list->tail;
+
+                int32_t cycle_body_label_table_pos = AddLabel(backend_context,
+                                                              language_context,
+                                                              backend_context->cur_address,
+                                                              kFuncLabelPosPoison,
+                                                              cycle_body_label_id);
+
+                TreeNode *instruction_node = cur_node->right;
+
+                while (instruction_node != nullptr)
+                {
+                    ASM_OPERATOR(instruction_node->left);
+
+                    instruction_node = instruction_node->right;
+                }
+
+                int32_t test_start_label_table_pos = AddLabel(backend_context,
+                                                              language_context,
+                                                              backend_context->cur_address,
+                                                              kFuncLabelPosPoison,
+                                                              test_start_label_id);
+
+                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_test_list_pos],
+                                       backend_context->label_table->label_array[test_start_label_table_pos].address);
+
+                ASM_OPERATOR(cur_node->left);
+
+                CMP_REGISTER_TO_IMMEDIATE(kRAX, 0);
+
+                JUMP_IF_ABOVE(cycle_body_label_id);
+
+                int32_t jump_on_cycle_list_pos = backend_context->instruction_list->tail;
+
+                SetJumpRelativeAddress(&backend_context->instruction_list->data[jump_on_cycle_list_pos],
+                                       backend_context->label_table->label_array[cycle_body_label_table_pos].address);
                 break;
             }
 

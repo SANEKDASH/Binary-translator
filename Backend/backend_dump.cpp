@@ -69,6 +69,11 @@ static const size_t kSrcRegisterMask  = kDestRegisterMask << 3;
 
 static uint8_t GetSrcRegister(Instruction *instruction)
 {
+    if (BackendDumpFile == nullptr)
+    {
+        return kBackendNullDumpFile;
+    }
+
     uint8_t src_register_code = (instruction->mod_rm & kSrcRegisterMask) >> 3;
 
     if (instruction->rex_prefix & kRegisterExtension)
@@ -83,6 +88,11 @@ static uint8_t GetSrcRegister(Instruction *instruction)
 
 static uint8_t GetDestRegister(Instruction *instruction)
 {
+    if (BackendDumpFile == nullptr)
+    {
+        return kBackendNullDumpFile;
+    }
+
     uint8_t dest_register_code =  (instruction->mod_rm & kDestRegisterMask);
 
     if (instruction->rex_prefix & kModRmExtension)
@@ -98,6 +108,11 @@ static uint8_t GetDestRegister(Instruction *instruction)
 BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
                                         int32_t           func_pos)
 {
+    if (BackendDumpFile == nullptr)
+    {
+        return kBackendNullDumpFile;
+    }
+
     if (func_pos == language_context->tables.main_id_pos)
     {
         DUMP_PRINT("%s:\n", kAsmMainName);
@@ -114,6 +129,11 @@ BackendErrs_t BackendDumpPrintFuncLabel(LanguageContext *language_context,
 
 BackendErrs_t BackendDumpPrintString(const char *str)
 {
+    if (BackendDumpFile == nullptr)
+    {
+        return kBackendNullDumpFile;
+    }
+
     DUMP_PRINT("%s", str);
 
     return kBackendSuccess;
@@ -124,6 +144,11 @@ BackendErrs_t BackendDumpPrintString(const char *str)
 BackendErrs_t BackendDumpPrintCall(LanguageContext *language_context,
                                    int32_t          func_pos)
 {
+    if (BackendDumpFile == nullptr)
+    {
+        return kBackendNullDumpFile;
+    }
+
     DUMP_PRINT("\tcall %s\n\n", language_context->identifiers.identifier_array[func_pos].id);
 
     return kBackendSuccess;
@@ -133,6 +158,11 @@ BackendErrs_t BackendDumpPrintCall(LanguageContext *language_context,
 
 BackendErrs_t DumpPrintCommonLabel(int32_t identification_number)
 {
+    if (BackendDumpFile == nullptr)
+    {
+        return kBackendNullDumpFile;
+    }
+
     DUMP_PRINT("label_%d:\n", identification_number);
 
     return kBackendSuccess;
@@ -143,6 +173,11 @@ BackendErrs_t DumpPrintCommonLabel(int32_t identification_number)
 BackendErrs_t BackendDumpPrintJump(Instruction *instruction,
                                    int32_t      label_identifier)
 {
+    if (BackendDumpFile == nullptr)
+    {
+        return kBackendNullDumpFile;
+    }
+
     size_t jump_pos = 0;
 
     while (instruction->logical_op_code != kJumpsArray[jump_pos].logical_op_code)
@@ -161,6 +196,11 @@ BackendErrs_t BackendDumpPrintJump(Instruction *instruction,
 BackendErrs_t BackendDumpPrintInstruction(BackendContext  *backend_context,
                                           Instruction     *instruction)
 {
+    if (BackendDumpFile == nullptr)
+    {
+        return kBackendNullDumpFile;
+    }
+
     uint8_t source_register   = GetSrcRegister(instruction);
     uint8_t receiver_register = GetDestRegister(instruction);
 

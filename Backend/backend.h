@@ -42,6 +42,7 @@ typedef enum
     kFailedToFindSymbolIndex,
     kBackendInconsistentSizes,
     kBackendUnknownOpcodeSize,
+    kBackendNullDumpFile,
 } BackendErrs_t;
 
 static const size_t kBaseRelocationTableCapacity = 16;

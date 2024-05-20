@@ -81,12 +81,6 @@ BackendErrs_t EncodeCall(BackendContext  *backend_context,
                          LanguageContext *language_context,
                          int32_t          func_pos);
 
-bool IsImmediateUsing(LogicalOpcode_t logical_op_code);
-
-bool IsDisplacementUsing(LogicalOpcode_t logical_op_code);
-
-bool IsJumpInstruction(LogicalOpcode_t logical_op_code);
-
 BackendErrs_t SetInstruction(Instruction        *instruction,
                              BackendContext     *backend_context,
                              uint16_t            op_code,

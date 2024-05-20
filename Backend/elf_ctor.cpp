@@ -359,8 +359,6 @@ static BackendErrs_t WriteDataAlign(size_t  data_size,
         return kBackendSuccess;
     }
 
-    printf("ALIGN SIZE = %d\n", align_size);
-
     uint8_t *null_array = (uint8_t *) calloc(align_size, sizeof(uint8_t));
 
     fwrite(null_array, sizeof(uint8_t), align_size, output_file);
