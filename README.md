@@ -90,3 +90,20 @@ Mod R/M:
 
 ```
 
+Процесс кодирования инструкции вы можете увидеть в [этом файле](https://github.com/SANEKDASH/Binary-translator/blob/main/Backend/instruction_encoding.cpp#L136).
+
+### Создание ELF файла
+ELF файл создается в соответствии с System V ABI для архитектуры x86-64.
+
+Он состоит из следующих секций:
+1) section .text
+Содержит байт-код программы.
+2) section .shstrtab
+Содержит таблицу с названиями секций.
+3) section .symtab
+Содержит таблицу с символами.
+4) section .strtab
+Содержит таблицу с именами символов.
+5) section .rela.text
+Содержит таблицу релокаций секции __.text__.
+
