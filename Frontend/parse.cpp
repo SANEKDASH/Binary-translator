@@ -95,9 +95,8 @@ static int PrintNameTableInFile(Identifiers *idents,
 
 
 TreeNode *GetSyntaxTree(Identifiers  *identifiers,
-                        const char *file_name)
+                        const char   *file_name)
 {
-
     CHECK(identifiers);
     CHECK(file_name);
 
@@ -110,7 +109,7 @@ TreeNode *GetSyntaxTree(Identifiers  *identifiers,
     Stack      lexems;
     StackInit(&lexems);
 
-    if (SplitOnLexems(&program, &lexems, identifiers) != kLexerSuccess)
+    if ((SplitOnLexems(&program, &lexems, identifiers) != kLexerSuccess) || lexems.stack_data.size == 0)
     {
         TextDtor(&program);
         StackDtor(&lexems);
@@ -119,7 +118,6 @@ TreeNode *GetSyntaxTree(Identifiers  *identifiers,
 
         return nullptr;
     }
-
 
     NameTables tables;
     NameTablesInit(&tables);
@@ -135,7 +133,6 @@ TreeNode *GetSyntaxTree(Identifiers  *identifiers,
     size_t i = 0;
 
     TreeNode *node = GetExternalDecl(identifiers, &lexems, &tables, external_table, &i);
-
 
     TABLES_DUMP(&tables);
 
@@ -276,6 +273,8 @@ static TreeNode *GetExternalDecl(Identifiers  *identifiers,
     }
 
     DEBUG_PRINT();
+
+    printf("stack size = %d\n", tokens->stack_data.size);
 
     while (*iter < tokens->stack_data.size)
     {

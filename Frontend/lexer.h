@@ -11,6 +11,7 @@ typedef enum
 {
     kLexerSuccess,
     kSyntaxError,
+    kCommentLine,
 } LexerErrs_t;
 
 LexerErrs_t SplitOnLexems(Text *text,

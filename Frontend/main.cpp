@@ -17,6 +17,7 @@ int main(int argc, char *argv[])
 
         return 0;
     }
+
     language_context.syntax_tree.root = GetSyntaxTree(&language_context.identifiers, argv[1]);
 
     GRAPH_DUMP_TREE(&language_context.syntax_tree);
@@ -25,7 +26,7 @@ int main(int argc, char *argv[])
 
     if (PrintTreeInFile(&language_context, "tree_save.txt") != kTreeSuccess || language_context.syntax_tree.root == nullptr)
     {
-        printf(">> Иди нахуй. Где дерево?\n");
+        printf(">> Иди нахуй, чел... У нас так не базарят.\n");
 
         LanguageContextDtor(&language_context);
 

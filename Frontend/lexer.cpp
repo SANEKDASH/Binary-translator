@@ -33,8 +33,8 @@ static int MissComment(char *string);
 //==============================================================================
 
 
-LexerErrs_t SplitOnLexems(Text      *text,
-                          Stack     *tokens,
+LexerErrs_t SplitOnLexems(Text        *text,
+                          Stack       *tokens,
                           Identifiers *identifiers)
 {
     setlocale(LC_ALL, "en_US.utf8");
@@ -47,11 +47,16 @@ LexerErrs_t SplitOnLexems(Text      *text,
         expr.string      = text->lines_ptr[i].str;
         expr.line_number = text->lines_ptr[i].real_line_number;
 
+        printf("huy %d - [%s]\n", i, expr.string);
+
         MissComment(expr.string);
+        SkipExprSpaces(&expr);
 
         while (expr.string[expr.pos] != '\0')
         {
-            if (GetLexem(tokens, &expr, identifiers) != kLexerSuccess)
+            LexerErrs_t lexer_status = GetLexem(tokens, &expr, identifiers);
+
+            if (lexer_status == kSyntaxError)
             {
                 printf("Syntax error. POS: %d, LINE: %d\n", expr.pos + 1, i + 1);
 
@@ -72,6 +77,7 @@ static int MissComment(char *string)
 
     if (comment != nullptr)
     {
+        printf("HUY\n");
         *comment = '\0';
     }
 
@@ -97,21 +103,21 @@ static LexerErrs_t GetLexem(Stack          *tokens,
                             Expr           *expr,
                             Identifiers *identifiers)
 {
-    SkipExprSpaces(expr);
-D_PR
     TreeNode *node = GetKeyword(expr);
-D_PR
 
     if (node == nullptr)
     {
         node = GetUnknownExpression(expr, identifiers);
     }
-D_PR
 
     node->line_number = expr->line_number;
 
+    if (node == nullptr)
+    {
+        return kSyntaxError;
+    }
+
     Push(tokens, node);
-D_PR
 
     return kLexerSuccess;
 }
@@ -144,9 +150,9 @@ D_PR
 
 static void SkipExprSpaces(Expr *expr)
 {
-    while (isspace(CUR_CHAR) && CUR_CHAR != '\0')
+    while (isspace(CUR_CHAR))
     {
-        POS++;
+        (POS)++;
     }
 }
 
@@ -158,9 +164,8 @@ TreeNode *GetKeyword(Expr *expr)
 
     for (size_t i = 0; i < kKeyWordCount; i++)
     {
-        if ((memcmp(CUR_STR, NameTable[i].key_word, NameTable[i].word_len)) == 0 &&
-                  (*(CUR_STR + NameTable[i].word_len) == '\0' ||
-                   *(CUR_STR + NameTable[i].word_len) == ' ' ))
+        if ((memcmp(CUR_STR, NameTable[i].key_word, NameTable[i].word_len)) == 0 && (*(CUR_STR + NameTable[i].word_len) == '\0' ||
+                                                                                     *(CUR_STR + NameTable[i].word_len) == ' ')   )
         {
             POS += NameTable[i].word_len;
 

@@ -259,13 +259,6 @@ size_t SplitBufIntoWords(      char *buf,
 
 size_t SplitBufIntoLines(char *buf)
 {
-    char *comment = nullptr;
-
-    if ((comment = strchr(buf, '#')) != nullptr)
-    {
-        *comment = '\0';
-    }
-
     size_t lines_count = 0;
 
     while (*buf != '\0')

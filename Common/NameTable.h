@@ -55,16 +55,16 @@ typedef enum
     kPrint            = 62,
     kScan             = 61,
 
-    kReturn           = 71, // return
-    kBreak            = 72, // break
-    kContinue         = 73, // continue
+    kReturn           = 71,
+    kBreak            = 72,
+    kContinue         = 73,
     kAbort            = 74,
-
 } KeyCode_t;
 
 struct KeyWord
 {
     const char *key_word;
+    const char *clang_keyword;
 
     KeyCode_t   key_code;
 
@@ -73,7 +73,7 @@ struct KeyWord
 
 static const KeyWord NameTable[]=
 {
-    #define DEF_KEYWORD(str, const) str, const, strlen(str),
+    #define DEF_KEYWORD(str, clang_str, const) str, clang_str, const, strlen(str),
 
     #include "keywords.gen.h"
 

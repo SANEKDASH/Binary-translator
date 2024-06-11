@@ -91,16 +91,13 @@ TreeErrs_t GraphDumpTree(Tree *tree,
 
     LogPrintEdges(tree->root, dot_file);
 
-
     LOG_PRINT("\n\n}");
 
     fclose(dot_file);
 
-    sprintf(cmd_command, "dot -Tsvg tree.dmp.dot -o graphdump%lu.svg"
-                         , call_count);
+    sprintf(cmd_command, "dot -Tsvg tree.dmp.dot -o graphdump%lu.svg", call_count);
 
     system(cmd_command);
-
 
     fprintf(log_file, "DATE : %s \nTIME : %s\n"
                       "Called from file: %s\n"
@@ -132,7 +129,7 @@ static void LogPrintTree(TreeNode *node,
         LOG_PRINT("node%p [style = filled, fillcolor = \"lightgreen\", shape = Mrecord, label = "
                   "\"op: %s | {type : OPERATOR | op_code : %d} | {parent: %p | pointer: %p | left: %p | right: %p} \"]\n",
                   node,
-                  NameTable[pos].key_word,
+                  NameTable[pos].clang_keyword,
                   node->data.key_word_code,
                   node->parent,
                   node,
@@ -253,7 +250,6 @@ void LogPrintEdges(TreeNode *node,
 }
 
 #undef LOG_PRINT
-
 #undef PRINT_BR
 #undef TEX_PRINT
 
